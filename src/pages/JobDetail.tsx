@@ -30,7 +30,9 @@ export const JobDetail = () => {
   const [reportReason, setReportReason] = useState('');
   const [reportDescription, setReportDescription] = useState('');
   const [resumeType, setResumeType] = useState<'online' | 'attachment'>('online');
+  const [selectedAttachmentId, setSelectedAttachmentId] = useState<string>('');
   const [applySuccess, setApplySuccess] = useState(false);
+  const [reportSuccess, setReportSuccess] = useState(false);
 
   const job = useStore(state => state.getJobById(id || ''));
   const company = useStore(state => state.getCompanyById(job?.companyId || ''));
@@ -41,8 +43,12 @@ export const JobDetail = () => {
   const getSimilarJobs = useStore(state => state.getSimilarJobs);
   const companies = useStore(state => state.companies);
   const resume = useStore(state => state.resume);
+  const submitReport = useStore(state => state.submitReport);
+  const hasReported = useStore(state => state.hasReported);
+  const currentUser = useStore(state => state.currentUser);
 
   const similarJobs = job ? getSimilarJobs(job.id, 4) : [];
+  const alreadyReported = job ? hasReported(job.id, 'job') : false;
 
   if (!job || !company) {
     return (
@@ -56,12 +62,43 @@ export const JobDetail = () => {
   }
 
   const handleApply = () => {
-    applyToJob(job.id, resumeType);
+    if (resumeType === 'attachment' && !selectedAttachmentId) {
+      alert('请选择要投递的附件简历');
+      return;
+    }
+    applyToJob(job.id, resumeType, resumeType === 'attachment' ? selectedAttachmentId : undefined);
     setApplySuccess(true);
     setTimeout(() => {
       setShowApplyModal(false);
       setApplySuccess(false);
     }, 2000);
+  };
+
+  const handleSubmitReport = () => {
+    if (!reportReason) {
+      alert('请选择举报原因');
+      return;
+    }
+    const success = submitReport({
+      type: 'job',
+      targetId: job.id,
+      targetName: job.title,
+      reporterId: currentUser?.id || 'u1',
+      reporterName: currentUser?.name || '用户',
+      reason: reportReason,
+      description: reportDescription,
+    });
+    if (success) {
+      setReportSuccess(true);
+      setTimeout(() => {
+        setShowReportModal(false);
+        setReportSuccess(false);
+        setReportReason('');
+        setReportDescription('');
+      }, 1500);
+    } else {
+      alert('您已经举报过该职位，请勿重复举报');
+    }
   };
 
   const reportReasons = [
@@ -121,8 +158,13 @@ export const JobDetail = () => {
                   </button>
                   <button
                     onClick={() => setShowReportModal(true)}
-                    className="p-3 rounded-xl bg-slate-100 text-slate-500 hover:bg-slate-200 transition-colors"
-                    title="举报"
+                    className={`p-3 rounded-xl transition-colors ${
+                      alreadyReported
+                        ? 'bg-warning-50 text-warning-600 cursor-not-allowed'
+                        : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                    }`}
+                    title={alreadyReported ? '您已举报过该职位' : '举报'}
+                    disabled={alreadyReported}
                   >
                     <Flag className="w-5 h-5" />
                   </button>
@@ -355,28 +397,65 @@ export const JobDetail = () => {
                       </div>
                     </label>
 
-                    <label className="flex items-start gap-3 p-4 border border-slate-200 rounded-xl cursor-pointer hover:border-primary-300 transition-colors">
-                      <input
-                        type="radio"
-                        name="resumeType"
-                        checked={resumeType === 'attachment'}
-                        onChange={() => setResumeType('attachment')}
-                        className="mt-0.5"
-                      />
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2">
-                          <Paperclip className="w-4 h-4 text-slate-400" />
-                          <span className="font-medium text-slate-800">使用附件简历</span>
+                    <div
+                      className={`p-4 border rounded-xl transition-colors ${
+                        resumeType === 'attachment'
+                          ? 'border-primary-300 bg-primary-50/30'
+                          : 'border-slate-200 hover:border-primary-300'
+                      }`}
+                    >
+                      <label className="flex items-start gap-3 cursor-pointer">
+                        <input
+                          type="radio"
+                          name="resumeType"
+                          checked={resumeType === 'attachment'}
+                          onChange={() => setResumeType('attachment')}
+                          className="mt-0.5"
+                        />
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2">
+                            <Paperclip className="w-4 h-4 text-slate-400" />
+                            <span className="font-medium text-slate-800">使用附件简历</span>
+                          </div>
+                          {resume.attachments.length === 0 ? (
+                            <p className="text-sm text-slate-400 mt-1">暂无附件简历，请先到简历中心上传</p>
+                          ) : (
+                            <div className="mt-3 space-y-2">
+                              {resume.attachments.map((att) => (
+                                <label
+                                  key={att.id}
+                                  className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-colors ${
+                                    selectedAttachmentId === att.id
+                                      ? 'bg-white border border-primary-300 shadow-sm'
+                                      : 'bg-white/50 hover:bg-white border border-transparent'
+                                  } ${resumeType !== 'attachment' ? 'opacity-50 pointer-events-none' : ''}`}
+                                >
+                                  <input
+                                    type="radio"
+                                    name="attachment"
+                                    checked={selectedAttachmentId === att.id && resumeType === 'attachment'}
+                                    onChange={() => {
+                                      setSelectedAttachmentId(att.id);
+                                      setResumeType('attachment');
+                                    }}
+                                    className="flex-shrink-0"
+                                  />
+                                  <div className="w-8 h-8 bg-primary-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                                    <FileText className="w-4 h-4 text-primary-600" />
+                                  </div>
+                                  <div className="flex-1 min-w-0">
+                                    <p className="font-medium text-sm text-slate-800 truncate">{att.name}</p>
+                                    <p className="text-xs text-slate-500">
+                                      {att.size} · {att.uploadDate}上传
+                                    </p>
+                                  </div>
+                                </label>
+                              ))}
+                            </div>
+                          )}
                         </div>
-                        {resume.attachments.length > 0 ? (
-                          <p className="text-sm text-slate-500 mt-1">
-                            {resume.attachments[0].name}
-                          </p>
-                        ) : (
-                          <p className="text-sm text-slate-400 mt-1">暂无附件简历</p>
-                        )}
-                      </div>
-                    </label>
+                      </label>
+                    </div>
                   </div>
 
                   <div className="flex gap-3">
@@ -412,50 +491,65 @@ export const JobDetail = () => {
                 <X className="w-5 h-5" />
               </button>
             </div>
-            <div className="p-5">
-              <p className="text-sm text-slate-600 mb-4">请选择举报原因</p>
-              <div className="space-y-2 mb-4">
-                {reportReasons.map(reason => (
+            {reportSuccess ? (
+              <div className="p-8 text-center">
+                <div className="w-16 h-16 bg-success-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <CheckCircle className="w-8 h-8 text-success-500" />
+                </div>
+                <h3 className="text-xl font-semibold text-slate-800 mb-2">举报已提交</h3>
+                <p className="text-slate-500">我们会尽快处理您的举报</p>
+              </div>
+            ) : alreadyReported ? (
+              <div className="p-8 text-center">
+                <div className="w-16 h-16 bg-warning-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <AlertTriangle className="w-8 h-8 text-warning-500" />
+                </div>
+                <h3 className="text-xl font-semibold text-slate-800 mb-2">已提交举报</h3>
+                <p className="text-slate-500">您已经举报过该职位，请等待处理结果</p>
+              </div>
+            ) : (
+              <div className="p-5">
+                <p className="text-sm text-slate-600 mb-4">请选择举报原因</p>
+                <div className="space-y-2 mb-4">
+                  {reportReasons.map(reason => (
+                    <button
+                      key={reason}
+                      onClick={() => setReportReason(reason)}
+                      className={`w-full text-left px-4 py-3 rounded-xl text-sm transition-colors ${
+                        reportReason === reason
+                          ? 'bg-primary-50 text-primary-700 border border-primary-200'
+                          : 'bg-slate-50 text-slate-700 hover:bg-slate-100'
+                      }`}
+                    >
+                      {reason}
+                    </button>
+                  ))}
+                </div>
+                <div className="mb-6">
+                  <label className="text-sm text-slate-600 mb-2 block">补充说明（选填）</label>
+                  <textarea
+                    value={reportDescription}
+                    onChange={e => setReportDescription(e.target.value)}
+                    placeholder="请详细描述违规情况..."
+                    className="input h-24 resize-none"
+                  />
+                </div>
+                <div className="flex gap-3">
                   <button
-                    key={reason}
-                    onClick={() => setReportReason(reason)}
-                    className={`w-full text-left px-4 py-3 rounded-xl text-sm transition-colors ${
-                      reportReason === reason
-                        ? 'bg-primary-50 text-primary-700 border border-primary-200'
-                        : 'bg-slate-50 text-slate-700 hover:bg-slate-100'
-                    }`}
+                    onClick={() => setShowReportModal(false)}
+                    className="btn btn-secondary flex-1"
                   >
-                    {reason}
+                    取消
                   </button>
-                ))}
+                  <button
+                    onClick={handleSubmitReport}
+                    className="btn btn-primary flex-1"
+                  >
+                    提交举报
+                  </button>
+                </div>
               </div>
-              <div className="mb-6">
-                <label className="text-sm text-slate-600 mb-2 block">补充说明（选填）</label>
-                <textarea
-                  value={reportDescription}
-                  onChange={e => setReportDescription(e.target.value)}
-                  placeholder="请详细描述违规情况..."
-                  className="input h-24 resize-none"
-                />
-              </div>
-              <div className="flex gap-3">
-                <button
-                  onClick={() => setShowReportModal(false)}
-                  className="btn btn-secondary flex-1"
-                >
-                  取消
-                </button>
-                <button
-                  onClick={() => {
-                    setShowReportModal(false);
-                    alert('举报已提交，我们会尽快处理');
-                  }}
-                  className="btn btn-primary flex-1"
-                >
-                  提交举报
-                </button>
-              </div>
-            </div>
+            )}
           </div>
         </div>
       )}

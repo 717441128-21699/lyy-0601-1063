@@ -18,6 +18,8 @@ import { useStore } from '../../store/useStore';
 export const Header = () => {
   const location = useLocation();
   const unreadCount = useStore(state => state.getUnreadCount());
+  const chatUnreadCount = useStore(state => state.getChatUnreadCount());
+  const totalUnread = unreadCount + chatUnreadCount;
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [showMobileMenu, setShowMobileMenu] = useState(false);
 
@@ -59,9 +61,9 @@ export const Header = () => {
                 >
                   <item.icon className="w-4 h-4" />
                   {item.label}
-                  {item.path === '/messages' && unreadCount > 0 && (
+                  {item.path === '/messages' && totalUnread > 0 && (
                     <span className="ml-0.5 bg-red-500 text-white text-xs px-1.5 py-0.5 rounded-full min-w-[18px] text-center">
-                      {unreadCount}
+                      {totalUnread}
                     </span>
                   )}
                 </Link>
@@ -80,7 +82,7 @@ export const Header = () => {
             <div className="hidden md:flex items-center gap-2">
               <button className="relative p-2 text-slate-600 hover:text-slate-900 hover:bg-slate-50 rounded-lg transition-colors">
                 <Bell className="w-5 h-5" />
-                {unreadCount > 0 && (
+                {totalUnread > 0 && (
                   <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full" />
                 )}
               </button>
@@ -152,9 +154,9 @@ export const Header = () => {
                 >
                   <item.icon className="w-5 h-5" />
                   {item.label}
-                  {item.path === '/messages' && unreadCount > 0 && (
+                  {item.path === '/messages' && totalUnread > 0 && (
                     <span className="ml-auto bg-red-500 text-white text-xs px-1.5 py-0.5 rounded-full">
-                      {unreadCount}
+                      {totalUnread}
                     </span>
                   )}
                 </Link>

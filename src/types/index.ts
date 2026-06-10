@@ -144,6 +144,8 @@ export interface Application {
   job: Job;
   company: Company;
   resumeType: 'online' | 'attachment';
+  attachmentId?: string;
+  attachmentName?: string;
   status: 'pending' | 'reviewing' | 'interview' | 'offer' | 'rejected';
   applyDate: string;
   timeline: TimelineItem[];
@@ -241,6 +243,17 @@ export interface FilterOptions {
   industry?: string;
   jobType?: string;
   publishDate?: string;
+}
+
+export interface AuditLog {
+  id: string;
+  operatorId: string;
+  operatorName: string;
+  targetType: 'company' | 'job' | 'report';
+  targetId: string;
+  targetName: string;
+  action: string;
+  timestamp: string;
 }
 
 export interface AdminStats {

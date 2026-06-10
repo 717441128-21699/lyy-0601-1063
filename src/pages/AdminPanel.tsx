@@ -23,6 +23,8 @@ import {
   BarChart3,
   Calendar,
   Trash,
+  ScrollText,
+  User,
 } from 'lucide-react';
 import { useStore } from '../store/useStore';
 
@@ -44,6 +46,7 @@ export const AdminPanel = () => {
   const companies = useStore((state) => state.companies);
   const jobs = useStore((state) => state.jobs);
   const reports = useStore((state) => state.reports);
+  const auditLogs = useStore((state) => state.auditLogs);
   const approveCompany = useStore((state) => state.approveCompany);
   const rejectCompany = useStore((state) => state.rejectCompany);
   const approveJob = useStore((state) => state.approveJob);
@@ -86,6 +89,7 @@ export const AdminPanel = () => {
     { id: 'companies', label: '企业审核', icon: Building2, badge: pendingCompanies.length },
     { id: 'jobs', label: '职位审核', icon: Briefcase, badge: pendingJobs.length },
     { id: 'reports', label: '举报管理', icon: Flag, badge: pendingReports.length },
+    { id: 'auditLogs', label: '操作记录', icon: ScrollText, badge: auditLogs.length > 0 ? auditLogs.length : undefined },
     { id: 'users', label: '用户管理', icon: Users },
     { id: 'settings', label: '系统设置', icon: Settings },
   ];
@@ -823,6 +827,97 @@ export const AdminPanel = () => {
     </div>
   );
 
+  const renderAuditLogs = () => {
+    const targetTypeLabels: Record<string, { label: string; color: string; bgColor: string }> = {
+      company: { label: '企业', color: 'text-primary-700', bgColor: 'bg-primary-50' },
+      job: { label: '职位', color: 'text-accent-700', bgColor: 'bg-accent-50' },
+      report: { label: '举报', color: 'text-warning-700', bgColor: 'bg-warning-50' },
+    };
+
+    const filteredLogs = searchKeyword
+      ? auditLogs.filter(
+          (log) =>
+            log.targetName.toLowerCase().includes(searchKeyword.toLowerCase()) ||
+            log.action.toLowerCase().includes(searchKeyword.toLowerCase()) ||
+            log.operatorName.toLowerCase().includes(searchKeyword.toLowerCase())
+        )
+      : auditLogs;
+
+    return (
+      <div>
+        <h2 className="text-xl font-bold text-slate-800 mb-6">操作记录</h2>
+        <div className="card">
+          <div className="p-4 border-b border-slate-100">
+            <div className="relative">
+              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              <input
+                type="text"
+                placeholder="搜索操作对象、操作内容或操作人..."
+                value={searchKeyword}
+                onChange={(e) => setSearchKeyword(e.target.value)}
+                className="input pl-9 w-full md:w-80"
+              />
+            </div>
+          </div>
+
+          <div className="divide-y divide-slate-100">
+            {filteredLogs.map((log) => {
+              const typeInfo = targetTypeLabels[log.targetType] || {
+                label: log.targetType,
+                color: 'text-slate-700',
+                bgColor: 'bg-slate-50',
+              };
+
+              return (
+                <div key={log.id} className="p-4 hover:bg-slate-50/50 transition-colors">
+                  <div className="flex items-start gap-3">
+                    <div
+                      className={`w-10 h-10 ${typeInfo.bgColor} rounded-lg flex items-center justify-center flex-shrink-0`}
+                    >
+                      <ScrollText className={`w-5 h-5 ${typeInfo.color}`} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className={`badge ${typeInfo.bgColor} ${typeInfo.color}`}>
+                          {typeInfo.label}
+                        </span>
+                        <span className="font-medium text-slate-800">{log.targetName}</span>
+                      </div>
+                      <p className="text-sm text-slate-600 mt-1">
+                        <span className="font-medium text-primary-600">{log.operatorName}</span>
+                        <span className="text-slate-500 mx-1">·</span>
+                        {log.action}
+                      </p>
+                      <div className="flex items-center gap-4 mt-2 text-xs text-slate-400">
+                        <span className="flex items-center gap-1">
+                          <Clock className="w-3 h-3" />
+                          {log.timestamp}
+                        </span>
+                        <span className="flex items-center gap-1">
+                          <User className="w-3 h-3" />
+                          操作人ID: {log.operatorId}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {filteredLogs.length === 0 && (
+            <div className="text-center py-12">
+              <ScrollText className="w-12 h-12 text-slate-300 mx-auto mb-3" />
+              <p className="text-slate-500">
+                {searchKeyword ? '未找到匹配的操作记录' : '暂无操作记录'}
+              </p>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
   const renderContent = () => {
     switch (activeTab) {
       case 'overview':
@@ -833,6 +928,8 @@ export const AdminPanel = () => {
         return renderJobs();
       case 'reports':
         return renderReports();
+      case 'auditLogs':
+        return renderAuditLogs();
       case 'users':
         return renderUsers();
       case 'settings':

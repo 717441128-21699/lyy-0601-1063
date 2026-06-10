@@ -17,6 +17,7 @@ import {
   Mail,
   Phone,
   Star,
+  Paperclip,
 } from 'lucide-react';
 import { useStore } from '../store/useStore';
 
@@ -208,6 +209,23 @@ export const ApplicationManagement = () => {
                                       <span className="flex items-center gap-1">
                                         <Calendar className="w-3.5 h-3.5" />
                                         {app.applyDate}
+                                      </span>
+                                      <span className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-xs ${
+                                        app.resumeType === 'online'
+                                          ? 'bg-primary-50 text-primary-600'
+                                          : 'bg-accent-50 text-accent-600'
+                                      }`}>
+                                        {app.resumeType === 'online' ? (
+                                          <>
+                                            <FileText className="w-3 h-3" />
+                                            在线简历
+                                          </>
+                                        ) : (
+                                          <>
+                                            <Paperclip className="w-3 h-3" />
+                                            {app.attachmentName || '附件简历'}
+                                          </>
+                                        )}
                                       </span>
                                     </div>
                                   </div>

@@ -880,7 +880,16 @@ const AttachmentsSection = () => {
       link.click();
       document.body.removeChild(link);
     } else {
-      alert('下载功能 - 实际项目中会下载文件');
+      const content = `这是 ${attachment.name} 的示例内容。\n实际项目中此处会是真实的简历文件内容。`;
+      const blob = new Blob([content], { type: 'text/plain' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = attachment.name;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
     }
   };
 

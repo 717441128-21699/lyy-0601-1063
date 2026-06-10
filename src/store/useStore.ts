@@ -15,6 +15,7 @@ import type {
   EducationItem,
   ExperienceItem,
   ProjectItem,
+  AuditLog,
 } from '../types';
 import { jobs as mockJobs, getSimilarJobs } from '../data/jobs';
 import { companies as mockCompanies } from '../data/companies';
@@ -38,6 +39,7 @@ interface AppState {
   messages: Message[];
   chatConversations: ChatConversation[];
   reports: Report[];
+  auditLogs: AuditLog[];
   filters: FilterOptions;
   compareList: string[];
 
@@ -48,7 +50,7 @@ interface AppState {
   addToCompare: (jobId: string) => void;
   removeFromCompare: (jobId: string) => void;
   clearCompare: () => void;
-  applyToJob: (jobId: string, resumeType: 'online' | 'attachment') => void;
+  applyToJob: (jobId: string, resumeType: 'online' | 'attachment', attachmentId?: string) => void;
   hasApplied: (jobId: string) => boolean;
   markMessageAsRead: (messageId: string) => void;
   getUnreadCount: () => number;
@@ -80,6 +82,10 @@ interface AppState {
   markConversationAsRead: (conversationId: string) => void;
   getChatUnreadCount: () => number;
 
+  submitReport: (report: Omit<Report, 'id' | 'status' | 'createdAt'>) => boolean;
+  hasReported: (targetId: string, type: Report['type']) => boolean;
+  addAuditLog: (log: Omit<AuditLog, 'id' | 'timestamp'>) => void;
+
   approveCompany: (companyId: string) => void;
   rejectCompany: (companyId: string) => void;
   approveJob: (jobId: string) => void;
@@ -102,6 +108,7 @@ export const useStore = create<AppState>()(
       messages: mockMessages,
       chatConversations: mockChatConversations,
       reports: mockReports,
+      auditLogs: [],
       filters: {},
       compareList: [],
 
@@ -184,10 +191,11 @@ export const useStore = create<AppState>()(
 
       clearCompare: () => set({ compareList: [] }),
 
-      applyToJob: (jobId, resumeType) => {
-        const { applications, jobs, companies } = get();
+      applyToJob: (jobId, resumeType, attachmentId) => {
+        const { applications, jobs, companies, resume } = get();
         const job = jobs.find((j) => j.id === jobId);
         const company = companies.find((c) => c.id === job?.companyId);
+        const attachment = attachmentId ? resume.attachments.find((a) => a.id === attachmentId) : undefined;
 
         if (job && company && !get().hasApplied(jobId)) {
           const newApplication: Application = {
@@ -197,6 +205,8 @@ export const useStore = create<AppState>()(
             job,
             company,
             resumeType,
+            attachmentId,
+            attachmentName: attachment?.name,
             status: 'pending',
             applyDate: new Date().toISOString().split('T')[0],
             timeline: [
@@ -508,66 +518,197 @@ export const useStore = create<AppState>()(
         return get().chatConversations.reduce((sum, c) => sum + c.unreadCount, 0);
       },
 
+      submitReport: (reportData) => {
+        const { reports, currentUser, jobs, companies } = get();
+        const duplicate = reports.find(
+          (r) => r.targetId === reportData.targetId && r.type === reportData.type && r.reporterId === reportData.reporterId
+        );
+        if (duplicate) return false;
+
+        let targetName = reportData.targetName;
+        if (reportData.type === 'job') {
+          const job = jobs.find((j) => j.id === reportData.targetId);
+          if (job) targetName = job.title;
+        } else if (reportData.type === 'company') {
+          const company = companies.find((c) => c.id === reportData.targetId);
+          if (company) targetName = company.name;
+        }
+
+        const newReport: Report = {
+          ...reportData,
+          id: `rpt${Date.now()}`,
+          targetName,
+          status: 'pending',
+          createdAt: new Date().toISOString().split('T')[0],
+        };
+        set({ reports: [newReport, ...reports] });
+        return true;
+      },
+
+      hasReported: (targetId, type) => {
+        const { reports, currentUser } = get();
+        return reports.some(
+          (r) => r.targetId === targetId && r.type === type && r.reporterId === (currentUser?.id || 'u1')
+        );
+      },
+
+      addAuditLog: (log: Omit<AuditLog, 'id' | 'timestamp'>) => {
+        set((state) => ({
+          auditLogs: [
+            {
+              ...log,
+              id: `log${Date.now()}`,
+              timestamp: new Date().toLocaleString(),
+            },
+            ...state.auditLogs,
+          ],
+        }));
+      },
+
       approveCompany: (companyId) => {
+        const { companies, currentUser } = get();
+        const company = companies.find((c) => c.id === companyId);
         set((state) => ({
           companies: state.companies.map((c) =>
             c.id === companyId ? { ...c, status: 'approved' as const } : c
           ),
         }));
+        if (company) {
+          get().addAuditLog({
+            operatorId: currentUser?.id || 'admin1',
+            operatorName: currentUser?.name || '管理员',
+            targetType: 'company',
+            targetId: companyId,
+            targetName: company.name,
+            action: '通过审核',
+          });
+        }
       },
 
       rejectCompany: (companyId) => {
+        const { companies, currentUser } = get();
+        const company = companies.find((c) => c.id === companyId);
         set((state) => ({
           companies: state.companies.map((c) =>
             c.id === companyId ? { ...c, status: 'rejected' as const } : c
           ),
         }));
+        if (company) {
+          get().addAuditLog({
+            operatorId: currentUser?.id || 'admin1',
+            operatorName: currentUser?.name || '管理员',
+            targetType: 'company',
+            targetId: companyId,
+            targetName: company.name,
+            action: '拒绝审核',
+          });
+        }
       },
 
       approveJob: (jobId) => {
+        const { jobs, currentUser } = get();
+        const job = jobs.find((j) => j.id === jobId);
         set((state) => ({
           jobs: state.jobs.map((j) =>
             j.id === jobId ? { ...j, status: 'active' as const } : j
           ),
         }));
+        if (job) {
+          get().addAuditLog({
+            operatorId: currentUser?.id || 'admin1',
+            operatorName: currentUser?.name || '管理员',
+            targetType: 'job',
+            targetId: jobId,
+            targetName: job.title,
+            action: '通过并上架',
+          });
+        }
       },
 
       rejectJob: (jobId) => {
+        const { jobs, currentUser } = get();
+        const job = jobs.find((j) => j.id === jobId);
         set((state) => ({
           jobs: state.jobs.map((j) =>
             j.id === jobId ? { ...j, status: 'rejected' as const } : j
           ),
         }));
+        if (job) {
+          get().addAuditLog({
+            operatorId: currentUser?.id || 'admin1',
+            operatorName: currentUser?.name || '管理员',
+            targetType: 'job',
+            targetId: jobId,
+            targetName: job.title,
+            action: '拒绝审核',
+          });
+        }
       },
 
       offlineJob: (jobId) => {
+        const { jobs, currentUser } = get();
+        const job = jobs.find((j) => j.id === jobId);
         set((state) => ({
           jobs: state.jobs.map((j) =>
             j.id === jobId ? { ...j, status: 'offline' as const } : j
           ),
         }));
+        if (job) {
+          get().addAuditLog({
+            operatorId: currentUser?.id || 'admin1',
+            operatorName: currentUser?.name || '管理员',
+            targetType: 'job',
+            targetId: jobId,
+            targetName: job.title,
+            action: '下架',
+          });
+        }
       },
 
       resolveReport: (reportId) => {
         const now = new Date().toISOString().split('T')[0];
+        const { reports, currentUser } = get();
+        const report = reports.find((r) => r.id === reportId);
         set((state) => ({
           reports: state.reports.map((r) =>
             r.id === reportId
-              ? { ...r, status: 'resolved' as const, handledAt: now, handlerId: 'admin1' }
+              ? { ...r, status: 'resolved' as const, handledAt: now, handlerId: currentUser?.id || 'admin1' }
               : r
           ),
         }));
+        if (report) {
+          get().addAuditLog({
+            operatorId: currentUser?.id || 'admin1',
+            operatorName: currentUser?.name || '管理员',
+            targetType: 'report',
+            targetId: reportId,
+            targetName: `举报：${report.targetName}`,
+            action: '处理举报（已解决）',
+          });
+        }
       },
 
       rejectReport: (reportId) => {
         const now = new Date().toISOString().split('T')[0];
+        const { reports, currentUser } = get();
+        const report = reports.find((r) => r.id === reportId);
         set((state) => ({
           reports: state.reports.map((r) =>
             r.id === reportId
-              ? { ...r, status: 'rejected' as const, handledAt: now, handlerId: 'admin1' }
+              ? { ...r, status: 'rejected' as const, handledAt: now, handlerId: currentUser?.id || 'admin1' }
               : r
           ),
         }));
+        if (report) {
+          get().addAuditLog({
+            operatorId: currentUser?.id || 'admin1',
+            operatorName: currentUser?.name || '管理员',
+            targetType: 'report',
+            targetId: reportId,
+            targetName: `举报：${report.targetName}`,
+            action: '驳回举报',
+          });
+        }
       },
     }),
     {
@@ -581,6 +722,7 @@ export const useStore = create<AppState>()(
         messages: state.messages,
         chatConversations: state.chatConversations,
         reports: state.reports,
+        auditLogs: state.auditLogs,
         jobs: state.jobs,
         companies: state.companies,
       }),
