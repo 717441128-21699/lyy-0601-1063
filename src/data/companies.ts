@@ -1,0 +1,206 @@
+import type { Company } from '../types';
+
+export const companies: Company[] = [
+  {
+    id: 'c1',
+    name: '智汇科技有限公司',
+    logo: 'https://images.unsplash.com/photo-1560179707-f14e90ef3623?w=120&h=120&fit=crop',
+    coverImage: 'https://images.unsplash.com/photo-1497366216548-37526070297c?w=1200&h=400&fit=crop',
+    industry: '互联网/科技',
+    scale: '100-499人',
+    description: '智汇科技是一家专注于人工智能和大数据解决方案的创新科技公司。我们致力于用技术赋能企业数字化转型，为客户提供智能、高效的产品和服务。公司拥有一支由行业专家组成的核心团队，已服务超过500家企业客户。',
+    certification: {
+      hasCertified: true,
+      creditCode: '91110000MA00ABC123',
+      establishDate: '2018-03-15',
+      legalPerson: '张明',
+      registeredCapital: '5000万元',
+    },
+    status: 'approved',
+    jobCount: 12,
+    location: '北京市海淀区中关村科技园',
+    website: 'https://www.zhihui-tech.com',
+    companyPhotos: [
+      'https://images.unsplash.com/photo-1497366811353-6870744d04b2?w=400&h=300&fit=crop',
+      'https://images.unsplash.com/photo-1497215842964-222b430dc094?w=400&h=300&fit=crop',
+      'https://images.unsplash.com/photo-1519389950473-47ba0277781c?w=400&h=300&fit=crop',
+    ],
+  },
+  {
+    id: 'c2',
+    name: '云帆软件股份有限公司',
+    logo: 'https://images.unsplash.com/photo-1611162617474-5b21e879e113?w=120&h=120&fit=crop',
+    coverImage: 'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?w=1200&h=400&fit=crop',
+    industry: '企业服务/软件',
+    scale: '500-999人',
+    description: '云帆软件是国内领先的企业级SaaS服务商，专注于为中小企业提供一站式数字化管理解决方案。产品涵盖人力资源管理、客户关系管理、财务管理等多个领域，累计服务客户超过10万家。',
+    certification: {
+      hasCertified: true,
+      creditCode: '91310000MA1FL2XY45',
+      establishDate: '2015-07-20',
+      legalPerson: '李华',
+      registeredCapital: '1亿元',
+    },
+    status: 'approved',
+    jobCount: 28,
+    location: '上海市浦东新区张江高科技园区',
+    website: 'https://www.yunfan-software.com',
+    companyPhotos: [
+      'https://images.unsplash.com/photo-1497366754035-f200968a6e72?w=400&h=300&fit=crop',
+      'https://images.unsplash.com/photo-1504384308090-c894fdcc538d?w=400&h=300&fit=crop',
+    ],
+  },
+  {
+    id: 'c3',
+    name: '星辰电商有限公司',
+    logo: 'https://images.unsplash.com/photo-1559136555-9303baea8ebd?w=120&h=120&fit=crop',
+    coverImage: 'https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?w=1200&h=400&fit=crop',
+    industry: '电子商务',
+    scale: '20-99人',
+    description: '星辰电商是一家快速成长的新锐电商公司，专注于潮流服饰和生活方式产品的线上销售。我们在淘宝、京东、抖音等多个平台拥有旗舰店，年销售额突破2亿元。',
+    certification: {
+      hasCertified: true,
+      creditCode: '91330100MA2AXYZ678',
+      establishDate: '2020-01-10',
+      legalPerson: '王芳',
+      registeredCapital: '500万元',
+    },
+    status: 'approved',
+    jobCount: 8,
+    location: '杭州市余杭区未来科技城',
+    website: 'https://www.xingchen-shop.com',
+    companyPhotos: [
+      'https://images.unsplash.com/photo-1556742111-a301076d9d18?w=400&h=300&fit=crop',
+      'https://images.unsplash.com/photo-1556740758-90de374c12ad?w=400&h=300&fit=crop',
+    ],
+  },
+  {
+    id: 'c4',
+    name: '博思教育科技',
+    logo: 'https://images.unsplash.com/photo-1434030216411-0b793f4b4173?w=120&h=120&fit=crop',
+    coverImage: 'https://images.unsplash.com/photo-1523050854058-8df90110c9f1?w=1200&h=400&fit=crop',
+    industry: '教育/培训',
+    scale: '100-499人',
+    description: '博思教育科技是一家专注于职业技能培训的在线教育公司。我们提供IT技能、职业考证、语言学习等多种课程，致力于帮助学员提升职场竞争力。',
+    certification: {
+      hasCertified: true,
+      creditCode: '91440300MA5DKLMN90',
+      establishDate: '2017-09-05',
+      legalPerson: '陈伟',
+      registeredCapital: '2000万元',
+    },
+    status: 'approved',
+    jobCount: 15,
+    location: '深圳市南山区科技园',
+    website: 'https://www.bosi-edu.com',
+    companyPhotos: [
+      'https://images.unsplash.com/photo-1522071820081-009f0129c71c?w=400&h=300&fit=crop',
+      'https://images.unsplash.com/photo-1524178232363-1fb2b075b655?w=400&h=300&fit=crop',
+    ],
+  },
+  {
+    id: 'c5',
+    name: '悦动文化传媒',
+    logo: 'https://images.unsplash.com/photo-1611162616305-c69b3fa7fbe0?w=120&h=120&fit=crop',
+    coverImage: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?w=1200&h=400&fit=crop',
+    industry: '传媒/广告',
+    scale: '20-99人',
+    description: '悦动传媒是一家创意驱动的整合营销传播公司，为品牌提供从策略策划、创意内容到数字营销的全案服务。我们服务过众多知名品牌，在业内拥有良好口碑。',
+    certification: {
+      hasCertified: false,
+      creditCode: '',
+      establishDate: '2021-05-18',
+      legalPerson: '刘洋',
+      registeredCapital: '300万元',
+    },
+    status: 'pending',
+    jobCount: 5,
+    location: '广州市天河区珠江新城',
+    companyPhotos: [
+      'https://images.unsplash.com/photo-1551434678-e076c223a692?w=400&h=300&fit=crop',
+    ],
+  },
+  {
+    id: 'c6',
+    name: '恒信金融服务',
+    logo: 'https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=120&h=120&fit=crop',
+    coverImage: 'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?w=1200&h=400&fit=crop',
+    industry: '金融/投资',
+    scale: '500-999人',
+    description: '恒信金融是一家综合性金融服务集团，业务涵盖财富管理、投资银行、保险经纪等领域。公司秉持"专业、诚信、创新"的理念，为客户提供全方位金融服务。',
+    certification: {
+      hasCertified: true,
+      creditCode: '91320100MA1NJHQW23',
+      establishDate: '2012-11-08',
+      legalPerson: '赵强',
+      registeredCapital: '5亿元',
+    },
+    status: 'approved',
+    jobCount: 22,
+    location: '南京市建邺区金融城',
+    website: 'https://www.hengxin-finance.com',
+    companyPhotos: [
+      'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?w=400&h=300&fit=crop',
+      'https://images.unsplash.com/photo-1497366216548-37526070297c?w=400&h=300&fit=crop',
+    ],
+  },
+  {
+    id: 'c7',
+    name: '绿源环保科技',
+    logo: 'https://images.unsplash.com/photo-1542601906990-b4d3fb778b09?w=120&h=120&fit=crop',
+    coverImage: 'https://images.unsplash.com/photo-1532996122724-e3c354a0b15b?w=1200&h=400&fit=crop',
+    industry: '环保/新能源',
+    scale: '100-499人',
+    description: '绿源环保是一家专注于环境治理和新能源技术的高新技术企业。我们提供废水处理、废气治理、固废处置等环保解决方案，以及太阳能、风能等新能源项目开发。',
+    certification: {
+      hasCertified: true,
+      creditCode: '91370200MA3CDFGH56',
+      establishDate: '2014-06-22',
+      legalPerson: '孙磊',
+      registeredCapital: '8000万元',
+    },
+    status: 'approved',
+    jobCount: 18,
+    location: '青岛市崂山区高科技工业园',
+    website: 'https://www.lvyuan-env.com',
+    companyPhotos: [
+      'https://images.unsplash.com/photo-1532996122724-e3c354a0b15b?w=400&h=300&fit=crop',
+    ],
+  },
+  {
+    id: 'c8',
+    name: '臻选医疗科技',
+    logo: 'https://images.unsplash.com/photo-1576091160550-2173dba999ef?w=120&h=120&fit=crop',
+    coverImage: 'https://images.unsplash.com/photo-1538108149393-fbbd81895907?w=1200&h=400&fit=crop',
+    industry: '医疗/健康',
+    scale: '100-499人',
+    description: '臻选医疗是一家专注于智慧医疗的科技公司，致力于通过人工智能和大数据技术提升医疗服务效率。产品涵盖智能诊断、远程医疗、健康管理等多个领域。',
+    certification: {
+      hasCertified: true,
+      creditCode: '91440100MA5UVWXY89',
+      establishDate: '2019-02-14',
+      legalPerson: '周丽',
+      registeredCapital: '3000万元',
+    },
+    status: 'approved',
+    jobCount: 9,
+    location: '广州市黄埔区科学城',
+    website: 'https://www.zhenxuan-med.com',
+    companyPhotos: [
+      'https://images.unsplash.com/photo-1576091160399-112ba8d25d1d?w=400&h=300&fit=crop',
+      'https://images.unsplash.com/photo-1579684385127-1ef15d508118?w=400&h=300&fit=crop',
+    ],
+  },
+];
+
+export const getCompanyById = (id: string): Company | undefined => {
+  return companies.find(c => c.id === id);
+};
+
+export const getApprovedCompanies = (): Company[] => {
+  return companies.filter(c => c.status === 'approved');
+};
+
+export const getPendingCompanies = (): Company[] => {
+  return companies.filter(c => c.status === 'pending');
+};
