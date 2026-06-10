@@ -851,14 +851,23 @@ const AttachmentsSection = () => {
     if (file) {
       const fileSize = (file.size / 1024 / 1024).toFixed(2) + 'MB';
       const fileType = file.name.split('.').pop()?.toLowerCase() || '';
-      
-      addAttachment({
-        name: file.name,
-        size: fileSize,
-        type: fileType,
-        uploadDate: new Date().toISOString().split('T')[0],
-        url: URL.createObjectURL(file),
-      });
+      const mimeType = file.type || 'application/octet-stream';
+      const objectUrl = URL.createObjectURL(file);
+
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const base64Content = event.target?.result as string;
+        addAttachment({
+          name: file.name,
+          size: fileSize,
+          type: fileType,
+          uploadDate: new Date().toISOString().split('T')[0],
+          url: objectUrl,
+          fileContent: base64Content,
+          mimeType,
+        });
+      };
+      reader.readAsDataURL(file);
     }
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
@@ -871,25 +880,48 @@ const AttachmentsSection = () => {
     }
   };
 
+  const base64ToBlob = (base64: string, mimeType: string): Blob => {
+    const base64Data = base64.split(',')[1] || base64;
+    const byteCharacters = atob(base64Data);
+    const byteArrays = [];
+    for (let offset = 0; offset < byteCharacters.length; offset += 512) {
+      const slice = byteCharacters.slice(offset, offset + 512);
+      const byteNumbers = new Array(slice.length);
+      for (let i = 0; i < slice.length; i++) {
+        byteNumbers[i] = slice.charCodeAt(i);
+      }
+      const byteArray = new Uint8Array(byteNumbers);
+      byteArrays.push(byteArray);
+    }
+    return new Blob(byteArrays, { type: mimeType });
+  };
+
   const handleDownload = (attachment: AttachmentItem) => {
-    if (attachment.url && attachment.url.startsWith('blob:')) {
-      const link = document.createElement('a');
-      link.href = attachment.url;
-      link.download = attachment.name;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
+    let downloadUrl = '';
+    let useBlobUrl = false;
+
+    if (attachment.fileContent) {
+      const blob = base64ToBlob(attachment.fileContent, attachment.mimeType || 'application/octet-stream');
+      downloadUrl = URL.createObjectURL(blob);
+      useBlobUrl = true;
+    } else if (attachment.url && attachment.url.startsWith('blob:')) {
+      downloadUrl = attachment.url;
     } else {
       const content = `这是 ${attachment.name} 的示例内容。\n实际项目中此处会是真实的简历文件内容。`;
       const blob = new Blob([content], { type: 'text/plain' });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = attachment.name;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      downloadUrl = URL.createObjectURL(blob);
+      useBlobUrl = true;
+    }
+
+    const link = document.createElement('a');
+    link.href = downloadUrl;
+    link.download = attachment.name;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    if (useBlobUrl) {
+      setTimeout(() => URL.revokeObjectURL(downloadUrl), 1000);
     }
   };
 

@@ -25,8 +25,13 @@ import {
   Trash,
   ScrollText,
   User,
+  Video,
+  Building,
+  Phone,
+  Paperclip,
 } from 'lucide-react';
 import { useStore } from '../store/useStore';
+import type { Application } from '../types';
 
 const reportStatusMap: Record<string, { label: string; color: string; bgColor: string }> = {
   pending: { label: '待处理', color: 'text-warning-700', bgColor: 'bg-warning-50' },
@@ -47,6 +52,8 @@ export const AdminPanel = () => {
   const jobs = useStore((state) => state.jobs);
   const reports = useStore((state) => state.reports);
   const auditLogs = useStore((state) => state.auditLogs);
+  const applications = useStore((state) => state.applications);
+  const interviews = useStore((state) => state.interviews);
   const approveCompany = useStore((state) => state.approveCompany);
   const rejectCompany = useStore((state) => state.rejectCompany);
   const approveJob = useStore((state) => state.approveJob);
@@ -54,6 +61,8 @@ export const AdminPanel = () => {
   const offlineJob = useStore((state) => state.offlineJob);
   const resolveReport = useStore((state) => state.resolveReport);
   const rejectReport = useStore((state) => state.rejectReport);
+  const updateApplicationStatus = useStore((state) => state.updateApplicationStatus);
+  const createInterview = useStore((state) => state.createInterview);
   const getCompanyById = useStore((state) => state.getCompanyById);
 
   const pendingCompanies = companies.filter((c) => c.status === 'pending');
@@ -88,6 +97,7 @@ export const AdminPanel = () => {
     { id: 'overview', label: '数据概览', icon: LayoutDashboard },
     { id: 'companies', label: '企业审核', icon: Building2, badge: pendingCompanies.length },
     { id: 'jobs', label: '职位审核', icon: Briefcase, badge: pendingJobs.length },
+    { id: 'candidates', label: '候选人看板', icon: Users, badge: applications.length > 0 ? applications.length : undefined },
     { id: 'reports', label: '举报管理', icon: Flag, badge: pendingReports.length },
     { id: 'auditLogs', label: '操作记录', icon: ScrollText, badge: auditLogs.length > 0 ? auditLogs.length : undefined },
     { id: 'users', label: '用户管理', icon: Users },
@@ -803,6 +813,411 @@ export const AdminPanel = () => {
     </div>
   );
 
+  const renderCandidates = () => {
+    const [selectedJobId, setSelectedJobId] = useState<string>('all');
+    const [showInterviewModal, setShowInterviewModal] = useState(false);
+    const [selectedApplication, setSelectedApplication] = useState<Application | null>(null);
+    const [interviewForm, setInterviewForm] = useState({
+      time: '',
+      endTime: '',
+      type: 'video' as 'onsite' | 'video' | 'phone',
+      interviewer: '王经理',
+      interviewerTitle: '技术总监',
+      location: '线上视频面试',
+      meetingLink: 'https://meeting.example.com/abc123',
+      notes: '',
+      round: 1,
+    });
+
+    const statusLabels: Record<string, { label: string; color: string; bgColor: string; borderColor: string }> = {
+      pending: { label: '待筛选', color: 'text-slate-700', bgColor: 'bg-slate-50', borderColor: 'border-slate-200' },
+      reviewing: { label: '筛选中', color: 'text-warning-700', bgColor: 'bg-warning-50', borderColor: 'border-warning-200' },
+      interview: { label: '面试中', color: 'text-primary-700', bgColor: 'bg-primary-50', borderColor: 'border-primary-200' },
+      offer: { label: '已发Offer', color: 'text-success-700', bgColor: 'bg-success-50', borderColor: 'border-success-200' },
+      rejected: { label: '不合适', color: 'text-danger-700', bgColor: 'bg-danger-50', borderColor: 'border-danger-200' },
+    };
+
+    const jobOptions = Array.from(
+      new Map(applications.map(a => {
+        const company = getCompanyById(a.job.companyId);
+        return [a.jobId, { ...a.job, companyName: company?.name || '未知公司' }];
+      })).values()
+    );
+
+    const filteredApplications = selectedJobId === 'all'
+      ? applications
+      : applications.filter(a => a.jobId === selectedJobId);
+
+    const groupedByStatus = {
+      pending: filteredApplications.filter(a => a.status === 'pending'),
+      reviewing: filteredApplications.filter(a => a.status === 'reviewing'),
+      interview: filteredApplications.filter(a => a.status === 'interview'),
+      offer: filteredApplications.filter(a => a.status === 'offer'),
+      rejected: filteredApplications.filter(a => a.status === 'rejected'),
+    };
+
+    const handleAdvanceStatus = (app: Application, nextStatus: Application['status']) => {
+      if (nextStatus === 'interview') {
+        setSelectedApplication(app);
+        setInterviewForm(prev => ({
+          ...prev,
+          time: '',
+          endTime: '',
+          round: interviews.filter(i => i.applicationId === app.id).length + 1,
+        }));
+        setShowInterviewModal(true);
+      } else {
+        const desc = nextStatus === 'reviewing'
+          ? 'HR已开始查看您的简历'
+          : nextStatus === 'offer'
+          ? '恭喜！HR已向您发出Offer'
+          : '很遗憾，您暂未通过本次筛选';
+        updateApplicationStatus(app.id, nextStatus, desc);
+      }
+    };
+
+    const handleCreateInterview = () => {
+      if (selectedApplication && interviewForm.time && interviewForm.endTime) {
+        createInterview(selectedApplication.id, {
+          companyId: selectedApplication.company.id,
+          jobTitle: selectedApplication.job.title,
+          companyName: selectedApplication.company.name,
+          companyLogo: selectedApplication.company.logo,
+          time: interviewForm.time,
+          endTime: interviewForm.endTime,
+          type: interviewForm.type,
+          interviewer: interviewForm.interviewer,
+          interviewerTitle: interviewForm.interviewerTitle,
+          location: interviewForm.location,
+          meetingLink: interviewForm.meetingLink,
+          notes: interviewForm.notes,
+          round: interviewForm.round,
+        });
+        setShowInterviewModal(false);
+        setSelectedApplication(null);
+      }
+    };
+
+    const renderCandidateCard = (app: Application) => {
+      const statusInfo = statusLabels[app.status];
+      const appInterviews = interviews.filter(i => i.applicationId === app.id);
+      const lastInterview = appInterviews.sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime())[0];
+      const lastChat = app.timeline[app.timeline.length - 1];
+
+      return (
+        <div key={app.id} className={`p-4 border rounded-xl ${statusInfo.bgColor} ${statusInfo.borderColor}`}>
+          <div className="flex items-start justify-between gap-2 mb-3">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-white rounded-full flex items-center justify-center shadow-sm border border-slate-200">
+                <User className="w-5 h-5 text-slate-500" />
+              </div>
+              <div>
+                <p className="font-medium text-slate-800">求职者</p>
+                <p className="text-xs text-slate-500">
+                  {app.resumeType === 'online' ? (
+                    <span className="flex items-center gap-1">
+                      <FileText className="w-3 h-3" /> 在线简历
+                    </span>
+                  ) : (
+                    <span className="flex items-center gap-1">
+                      <Paperclip className="w-3 h-3" /> {app.attachmentName || '附件简历'}
+                    </span>
+                  )}
+                </p>
+              </div>
+            </div>
+            <span className={`badge ${statusInfo.bgColor} ${statusInfo.color} border ${statusInfo.borderColor}`}>
+              {statusInfo.label}
+            </span>
+          </div>
+
+          <div className="text-sm text-slate-600 space-y-1 mb-3">
+            <p className="font-medium text-slate-700">{app.job.title}</p>
+            <p className="text-slate-500 text-xs">{app.company.name}</p>
+          </div>
+
+          <div className="text-xs text-slate-400 space-y-1 mb-4">
+            <p className="flex items-center gap-1">
+              <Calendar className="w-3 h-3" />
+              投递：{app.applyDate}
+            </p>
+            {lastChat && (
+              <p className="flex items-center gap-1">
+                <Clock className="w-3 h-3" />
+                最近：{lastChat.date}
+              </p>
+            )}
+            {lastInterview && (
+              <p className="flex items-center gap-1 text-primary-600">
+                <Calendar className="w-3 h-3" />
+                面试：{lastInterview.time}
+              </p>
+            )}
+          </div>
+
+          <div className="flex flex-wrap gap-1.5">
+            {app.status === 'pending' && (
+              <>
+                <button
+                  onClick={() => handleAdvanceStatus(app, 'reviewing')}
+                  className="flex-1 px-2 py-1.5 text-xs bg-warning-100 text-warning-700 hover:bg-warning-200 rounded-lg transition-colors"
+                >
+                  进入筛选
+                </button>
+                <button
+                  onClick={() => handleAdvanceStatus(app, 'rejected')}
+                  className="flex-1 px-2 py-1.5 text-xs bg-slate-100 text-slate-600 hover:bg-slate-200 rounded-lg transition-colors"
+                >
+                  不合适
+                </button>
+              </>
+            )}
+            {app.status === 'reviewing' && (
+              <>
+                <button
+                  onClick={() => handleAdvanceStatus(app, 'interview')}
+                  className="flex-1 px-2 py-1.5 text-xs bg-primary-100 text-primary-700 hover:bg-primary-200 rounded-lg transition-colors"
+                >
+                  邀约面试
+                </button>
+                <button
+                  onClick={() => handleAdvanceStatus(app, 'rejected')}
+                  className="flex-1 px-2 py-1.5 text-xs bg-slate-100 text-slate-600 hover:bg-slate-200 rounded-lg transition-colors"
+                >
+                  不合适
+                </button>
+              </>
+            )}
+            {app.status === 'interview' && (
+              <>
+                <button
+                  onClick={() => handleAdvanceStatus(app, 'offer')}
+                  className="flex-1 px-2 py-1.5 text-xs bg-success-100 text-success-700 hover:bg-success-200 rounded-lg transition-colors"
+                >
+                  发Offer
+                </button>
+                <button
+                  onClick={() => handleAdvanceStatus(app, 'rejected')}
+                  className="flex-1 px-2 py-1.5 text-xs bg-slate-100 text-slate-600 hover:bg-slate-200 rounded-lg transition-colors"
+                >
+                  不合适
+                </button>
+              </>
+            )}
+            {app.status === 'offer' && (
+              <span className="flex-1 px-2 py-1.5 text-xs text-center text-success-600 font-medium">
+                ✓ 已发Offer
+              </span>
+            )}
+            {app.status === 'rejected' && (
+              <span className="flex-1 px-2 py-1.5 text-xs text-center text-slate-400">
+                已处理
+              </span>
+            )}
+          </div>
+        </div>
+      );
+    };
+
+    const columns = [
+      { key: 'pending', title: '待筛选' },
+      { key: 'reviewing', title: '筛选中' },
+      { key: 'interview', title: '面试中' },
+      { key: 'offer', title: '已发Offer' },
+      { key: 'rejected', title: '不合适' },
+    ];
+
+    return (
+      <div>
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
+          <div>
+            <h2 className="text-xl font-bold text-slate-800">候选人看板</h2>
+            <p className="text-slate-500 mt-1">按职位查看候选人并推进招聘流程</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <Filter className="w-4 h-4 text-slate-400" />
+            <select
+              value={selectedJobId}
+              onChange={(e) => setSelectedJobId(e.target.value)}
+              className="input w-64"
+            >
+              <option value="all">全部职位</option>
+              {jobOptions.map(job => (
+                <option key={job.id} value={job.id}>{job.title} - {job.companyName}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+          {columns.map(col => {
+            const colData = groupedByStatus[col.key as keyof typeof groupedByStatus];
+            const colInfo = statusLabels[col.key];
+            return (
+              <div key={col.key} className="space-y-3">
+                <div className="flex items-center justify-between px-2">
+                  <div className="flex items-center gap-2">
+                    <h3 className="font-medium text-slate-700">{col.title}</h3>
+                    <span className={`badge ${colInfo.bgColor} ${colInfo.color}`}>
+                      {colData.length}
+                    </span>
+                  </div>
+                </div>
+                <div className="space-y-3">
+                  {colData.map(renderCandidateCard)}
+                  {colData.length === 0 && (
+                    <div className="p-8 text-center border border-dashed border-slate-200 rounded-xl">
+                      <Users className="w-8 h-8 text-slate-300 mx-auto mb-2" />
+                      <p className="text-sm text-slate-400">暂无候选人</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {showInterviewModal && selectedApplication && (
+          <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+            <div className="bg-white rounded-2xl w-full max-w-lg animate-slide-up">
+              <div className="flex items-center justify-between p-5 border-b border-slate-100">
+                <h3 className="text-lg font-semibold flex items-center gap-2">
+                  <Calendar className="w-5 h-5 text-primary-500" />
+                  发起面试邀约
+                </h3>
+                <button
+                  onClick={() => setShowInterviewModal(false)}
+                  className="text-slate-400 hover:text-slate-600"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              <div className="p-5 space-y-4 max-h-[70vh] overflow-y-auto">
+                <div className="bg-primary-50/50 p-4 rounded-xl">
+                  <p className="font-medium text-slate-800">{selectedApplication.job.title}</p>
+                  <p className="text-sm text-slate-500 mt-1">{selectedApplication.company.name}</p>
+                </div>
+
+                <div>
+                  <label className="text-sm text-slate-600 mb-2 block">面试方式</label>
+                  <div className="grid grid-cols-3 gap-2">
+                    {[{ id: 'video', label: '视频面试', icon: Video },
+                      { id: 'onsite', label: '现场面试', icon: Building },
+                      { id: 'phone', label: '电话面试', icon: Phone }].map(t => (
+                      <button
+                        key={t.id}
+                        onClick={() => setInterviewForm({ ...interviewForm, type: t.id as any, location: t.id === 'onsite' ? '公司会议室' : t.id === 'video' ? '线上视频面试' : '电话面试' })}
+                        className={`px-3 py-2 text-sm rounded-lg flex items-center justify-center gap-1.5 transition-colors ${
+                          interviewForm.type === t.id
+                            ? 'bg-primary-100 text-primary-700 font-medium'
+                            : 'bg-slate-50 text-slate-600 hover:bg-slate-100'
+                        }`}
+                      >
+                        <t.icon className="w-4 h-4" />
+                        {t.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-sm text-slate-600 mb-2 block">开始时间</label>
+                    <input
+                      type="datetime-local"
+                      value={interviewForm.time.replace(' ', 'T').slice(0, 16)}
+                      onChange={(e) => setInterviewForm({ ...interviewForm, time: e.target.value.replace('T', ' ')+':00' })}
+                      className="input"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm text-slate-600 mb-2 block">结束时间</label>
+                    <input
+                      type="datetime-local"
+                      value={interviewForm.endTime.replace(' ', 'T').slice(0, 16)}
+                      onChange={(e) => setInterviewForm({ ...interviewForm, endTime: e.target.value.replace('T', ' ')+':00' })}
+                      className="input"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-sm text-slate-600 mb-2 block">面试官</label>
+                    <input
+                      type="text"
+                      value={interviewForm.interviewer}
+                      onChange={(e) => setInterviewForm({ ...interviewForm, interviewer: e.target.value })}
+                      className="input"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm text-slate-600 mb-2 block">面试官职位</label>
+                    <input
+                      type="text"
+                      value={interviewForm.interviewerTitle}
+                      onChange={(e) => setInterviewForm({ ...interviewForm, interviewerTitle: e.target.value })}
+                      className="input"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="text-sm text-slate-600 mb-2 block">
+                    {interviewForm.type === 'onsite' ? '面试地点' : '面试方式说明'}
+                  </label>
+                  <input
+                    type="text"
+                    value={interviewForm.location}
+                    onChange={(e) => setInterviewForm({ ...interviewForm, location: e.target.value })}
+                    className="input"
+                  />
+                </div>
+
+                {interviewForm.type === 'video' && (
+                  <div>
+                    <label className="text-sm text-slate-600 mb-2 block">会议链接</label>
+                    <input
+                      type="text"
+                      value={interviewForm.meetingLink}
+                      onChange={(e) => setInterviewForm({ ...interviewForm, meetingLink: e.target.value })}
+                      className="input"
+                    />
+                  </div>
+                )}
+
+                <div>
+                  <label className="text-sm text-slate-600 mb-2 block">备注（选填）</label>
+                  <textarea
+                    value={interviewForm.notes}
+                    onChange={(e) => setInterviewForm({ ...interviewForm, notes: e.target.value })}
+                    placeholder="请输入面试注意事项..."
+                    className="input h-20 resize-none"
+                  />
+                </div>
+              </div>
+              <div className="flex gap-3 p-5 border-t border-slate-100">
+                <button
+                  onClick={() => setShowInterviewModal(false)}
+                  className="btn btn-secondary flex-1"
+                >
+                  取消
+                </button>
+                <button
+                  onClick={handleCreateInterview}
+                  disabled={!interviewForm.time || !interviewForm.endTime}
+                  className="btn btn-primary flex-1 disabled:opacity-50"
+                >
+                  确认邀约
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
   const renderUsers = () => (
     <div>
       <h2 className="text-xl font-bold text-slate-800 mb-6">用户管理</h2>
@@ -828,13 +1243,25 @@ export const AdminPanel = () => {
   );
 
   const renderAuditLogs = () => {
+    const [actionFilter, setActionFilter] = useState<string>('all');
+
     const targetTypeLabels: Record<string, { label: string; color: string; bgColor: string }> = {
       company: { label: '企业', color: 'text-primary-700', bgColor: 'bg-primary-50' },
       job: { label: '职位', color: 'text-accent-700', bgColor: 'bg-accent-50' },
       report: { label: '举报', color: 'text-warning-700', bgColor: 'bg-warning-50' },
     };
 
-    const filteredLogs = searchKeyword
+    const actionFilters = [
+      { id: 'all', label: '全部操作' },
+      { id: '通过', label: '通过' },
+      { id: '拒绝', label: '拒绝' },
+      { id: '通过上架', label: '通过上架' },
+      { id: '下架', label: '下架' },
+      { id: '处理', label: '处理举报' },
+      { id: '驳回', label: '驳回举报' },
+    ];
+
+    let filteredLogs = searchKeyword
       ? auditLogs.filter(
           (log) =>
             log.targetName.toLowerCase().includes(searchKeyword.toLowerCase()) ||
@@ -843,11 +1270,15 @@ export const AdminPanel = () => {
         )
       : auditLogs;
 
+    if (actionFilter !== 'all') {
+      filteredLogs = filteredLogs.filter((log) => log.action === actionFilter);
+    }
+
     return (
       <div>
         <h2 className="text-xl font-bold text-slate-800 mb-6">操作记录</h2>
         <div className="card">
-          <div className="p-4 border-b border-slate-100">
+          <div className="p-4 border-b border-slate-100 flex flex-col md:flex-row gap-3 md:items-center md:justify-between">
             <div className="relative">
               <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
               <input
@@ -857,6 +1288,21 @@ export const AdminPanel = () => {
                 onChange={(e) => setSearchKeyword(e.target.value)}
                 className="input pl-9 w-full md:w-80"
               />
+            </div>
+            <div className="flex gap-2 flex-wrap">
+              {actionFilters.map((filter) => (
+                <button
+                  key={filter.id}
+                  onClick={() => setActionFilter(filter.id)}
+                  className={`px-3 py-1.5 text-sm rounded-lg transition-colors ${
+                    actionFilter === filter.id
+                      ? 'bg-primary-100 text-primary-700 font-medium'
+                      : 'bg-slate-50 text-slate-600 hover:bg-slate-100'
+                  }`}
+                >
+                  {filter.label}
+                </button>
+              ))}
             </div>
           </div>
 
@@ -926,6 +1372,8 @@ export const AdminPanel = () => {
         return renderCompanies();
       case 'jobs':
         return renderJobs();
+      case 'candidates':
+        return renderCandidates();
       case 'reports':
         return renderReports();
       case 'auditLogs':

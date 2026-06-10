@@ -96,6 +96,8 @@ export interface AttachmentItem {
   type: string;
   uploadDate: string;
   url: string;
+  fileContent?: string;
+  mimeType?: string;
 }
 
 export interface TimelineItem {

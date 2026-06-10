@@ -17,9 +17,7 @@ import { useStore } from '../../store/useStore';
 
 export const Header = () => {
   const location = useLocation();
-  const unreadCount = useStore(state => state.getUnreadCount());
-  const chatUnreadCount = useStore(state => state.getChatUnreadCount());
-  const totalUnread = unreadCount + chatUnreadCount;
+  const totalUnread = useStore(state => state.getTotalUnreadCount());
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [showMobileMenu, setShowMobileMenu] = useState(false);
 

@@ -38,6 +38,8 @@ export const MessageCenter = () => {
   const chatConversations = useStore((state) => state.chatConversations);
   const markMessageAsRead = useStore((state) => state.markMessageAsRead);
   const getUnreadCount = useStore((state) => state.getUnreadCount);
+  const getChatUnreadCount = useStore((state) => state.getChatUnreadCount);
+  const getTotalUnreadCount = useStore((state) => state.getTotalUnreadCount);
   const sendChatMessage = useStore((state) => state.sendChatMessage);
   const markConversationAsRead = useStore((state) => state.markConversationAsRead);
 
@@ -99,6 +101,8 @@ export const MessageCenter = () => {
   };
 
   const unreadCount = getUnreadCount();
+  const chatUnreadCount = getChatUnreadCount();
+  const totalUnread = getTotalUnreadCount();
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -111,7 +115,7 @@ export const MessageCenter = () => {
           <div>
             <h1 className="text-2xl font-bold text-slate-800">消息中心</h1>
             <p className="text-slate-500 mt-1">
-              共 {messages.length} 条消息，{unreadCount} 条未读
+              共 {messages.length + chatConversations.length} 条消息，{totalUnread} 条未读
             </p>
           </div>
           <div className="flex gap-3">
@@ -138,10 +142,14 @@ export const MessageCenter = () => {
               <div className="border-b border-slate-100 overflow-x-auto">
                 <nav className="flex gap-1 px-4">
                   {tabs.map((tab) => {
-                    const tabUnreadCount =
-                      tab.id === 'all'
-                        ? unreadCount
-                        : messages.filter((m) => m.type === tab.id && !m.isRead).length;
+                    let tabUnreadCount = 0;
+                    if (tab.id === 'all') {
+                      tabUnreadCount = totalUnread;
+                    } else if (tab.id === 'chat') {
+                      tabUnreadCount = chatUnreadCount;
+                    } else {
+                      tabUnreadCount = messages.filter((m) => m.type === tab.id && !m.isRead).length;
+                    }
 
                     return (
                       <button

@@ -52,8 +52,11 @@ interface AppState {
   clearCompare: () => void;
   applyToJob: (jobId: string, resumeType: 'online' | 'attachment', attachmentId?: string) => void;
   hasApplied: (jobId: string) => boolean;
+  updateApplicationStatus: (applicationId: string, status: Application['status'], description?: string) => void;
+  createInterview: (applicationId: string, interviewData: Omit<Interview, 'id' | 'applicationId' | 'userId' | 'status' | 'rescheduleHistory'>) => void;
   markMessageAsRead: (messageId: string) => void;
   getUnreadCount: () => number;
+  getTotalUnreadCount: () => number;
   confirmInterview: (interviewId: string) => void;
   rescheduleInterview: (interviewId: string, newTime: string, reason: string) => void;
   getJobById: (id: string) => Job | undefined;
@@ -227,6 +230,126 @@ export const useStore = create<AppState>()(
         return get().applications.some((a) => a.jobId === jobId);
       },
 
+      updateApplicationStatus: (applicationId, status, description) => {
+        const statusLabels: Record<string, string> = {
+          pending: '投递成功',
+          reviewing: '简历筛选中',
+          interview: '面试中',
+          offer: '已发Offer',
+          rejected: '未通过',
+        };
+        const defaultDescriptions: Record<string, string> = {
+          reviewing: 'HR正在查看您的简历',
+          interview: 'HR已邀请您参加面试，请查看面试安排',
+          offer: '恭喜您！HR已向您发出Offer',
+          rejected: '很遗憾，您的简历未通过筛选',
+        };
+
+        set((state) => {
+          const updatedApplications = state.applications.map((app) => {
+            if (app.id !== applicationId) return app;
+            const newTimeline = app.timeline.map((t) => ({ ...t, isCurrent: false }));
+            newTimeline.push({
+              id: `t${Date.now()}`,
+              status: statusLabels[status] || status,
+              description: description || defaultDescriptions[status] || '',
+              date: new Date().toLocaleString(),
+              isCurrent: true,
+            });
+            return { ...app, status, timeline: newTimeline };
+          });
+
+          let newMessages = [...state.messages];
+          const app = state.applications.find((a) => a.id === applicationId);
+          if (app && ['reviewing', 'interview', 'offer', 'rejected'].includes(status)) {
+            const msgType = status === 'interview' ? 'interview' : status === 'offer' ? 'system' : 'application';
+            newMessages = [
+              {
+                id: `msg${Date.now()}`,
+                type: msgType as 'system' | 'interview' | 'application',
+                senderId: app.company.id,
+                senderName: app.company.name,
+                senderAvatar: app.company.logo,
+                receiverId: 'u1',
+                title:
+                  status === 'reviewing'
+                    ? '简历筛选通知'
+                    : status === 'interview'
+                    ? '面试邀约通知'
+                    : status === 'offer'
+                    ? 'Offer通知'
+                    : '投递结果通知',
+                content:
+                  status === 'reviewing'
+                    ? `您投递的「${app.job.title}」简历正在被HR查看`
+                    : status === 'interview'
+                    ? `您投递的「${app.job.title}」已进入面试阶段，请查看面试安排`
+                    : status === 'offer'
+                    ? `恭喜！您投递的「${app.job.title}」已发出Offer`
+                    : `很遗憾，您投递的「${app.job.title}」未通过筛选`,
+                isRead: false,
+                createdAt: new Date().toLocaleString(),
+                relatedId: applicationId,
+                relatedType: 'application',
+              },
+              ...newMessages,
+            ];
+          }
+
+          return { applications: updatedApplications, messages: newMessages };
+        });
+      },
+
+      createInterview: (applicationId, interviewData) => {
+        set((state) => {
+          const app = state.applications.find((a) => a.id === applicationId);
+          if (!app) return state;
+
+          const newInterview: Interview = {
+            ...interviewData,
+            id: `int${Date.now()}`,
+            applicationId,
+            userId: 'u1',
+            status: 'pending',
+            rescheduleHistory: [],
+          };
+
+          const updatedApplications = state.applications.map((a) => {
+            if (a.id !== applicationId) return a;
+            const newTimeline = a.timeline.map((t) => ({ ...t, isCurrent: false }));
+            newTimeline.push({
+              id: `t${Date.now()}`,
+              status: '面试中',
+              description: `HR已邀请您参加${interviewData.type === 'onsite' ? '现场' : interviewData.type === 'video' ? '视频' : '电话'}面试`,
+              date: new Date().toLocaleString(),
+              isCurrent: true,
+            });
+            return { ...a, status: 'interview' as const, timeline: newTimeline };
+          });
+
+          const interviewMsg: Message = {
+            id: `msg${Date.now() + 1}`,
+            type: 'interview',
+            senderId: app.company.id,
+            senderName: app.company.name,
+            senderAvatar: app.company.logo,
+            receiverId: 'u1',
+            title: '面试邀约',
+            content: `${app.company.name}邀请您参加「${app.job.title}」的${interviewData.type === 'onsite' ? '现场' : interviewData.type === 'video' ? '视频' : '电话'}面试，时间：${interviewData.time}`,
+            isRead: false,
+            createdAt: new Date().toLocaleString(),
+            relatedId: newInterview.id,
+            relatedType: 'interview',
+          };
+
+          return {
+            interviews: [newInterview, ...state.interviews],
+            applications: updatedApplications,
+            messages: [interviewMsg, ...state.messages],
+          };
+        });
+      },
+
       markMessageAsRead: (messageId) => {
         set({
           messages: get().messages.map((m) =>
@@ -237,6 +360,12 @@ export const useStore = create<AppState>()(
 
       getUnreadCount: () => {
         return get().messages.filter((m) => !m.isRead).length;
+      },
+
+      getTotalUnreadCount: () => {
+        const messageUnread = get().messages.filter((m) => !m.isRead).length;
+        const chatUnread = get().chatConversations.reduce((sum, c) => sum + c.unreadCount, 0);
+        return messageUnread + chatUnread;
       },
 
       confirmInterview: (interviewId) => {
@@ -580,7 +709,7 @@ export const useStore = create<AppState>()(
             targetType: 'company',
             targetId: companyId,
             targetName: company.name,
-            action: '通过审核',
+            action: '通过',
           });
         }
       },
@@ -600,7 +729,7 @@ export const useStore = create<AppState>()(
             targetType: 'company',
             targetId: companyId,
             targetName: company.name,
-            action: '拒绝审核',
+            action: '拒绝',
           });
         }
       },
@@ -620,7 +749,7 @@ export const useStore = create<AppState>()(
             targetType: 'job',
             targetId: jobId,
             targetName: job.title,
-            action: '通过并上架',
+            action: '通过上架',
           });
         }
       },
@@ -640,7 +769,7 @@ export const useStore = create<AppState>()(
             targetType: 'job',
             targetId: jobId,
             targetName: job.title,
-            action: '拒绝审核',
+            action: '拒绝',
           });
         }
       },
@@ -683,7 +812,7 @@ export const useStore = create<AppState>()(
             targetType: 'report',
             targetId: reportId,
             targetName: `举报：${report.targetName}`,
-            action: '处理举报（已解决）',
+            action: '处理',
           });
         }
       },
@@ -706,7 +835,7 @@ export const useStore = create<AppState>()(
             targetType: 'report',
             targetId: reportId,
             targetName: `举报：${report.targetName}`,
-            action: '驳回举报',
+            action: '驳回',
           });
         }
       },
