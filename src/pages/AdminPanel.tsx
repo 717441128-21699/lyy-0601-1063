@@ -29,6 +29,7 @@ import {
   Building,
   Phone,
   Paperclip,
+  RefreshCw,
 } from 'lucide-react';
 import { useStore } from '../store/useStore';
 import type { Application } from '../types';
@@ -47,6 +48,21 @@ export const AdminPanel = () => {
   const [companyFilter, setCompanyFilter] = useState('all');
   const [jobFilter, setJobFilter] = useState('all');
   const [reportFilter, setReportFilter] = useState('all');
+  const [candidateJobFilter, setCandidateJobFilter] = useState<string>('all');
+  const [showInterviewModal, setShowInterviewModal] = useState(false);
+  const [selectedApplication, setSelectedApplication] = useState<Application | null>(null);
+  const [interviewForm, setInterviewForm] = useState({
+    time: '',
+    endTime: '',
+    type: 'video' as 'onsite' | 'video' | 'phone',
+    interviewer: '王经理',
+    interviewerTitle: '技术总监',
+    location: '线上视频面试',
+    meetingLink: 'https://meeting.example.com/abc123',
+    notes: '',
+    round: 1,
+  });
+  const [actionFilter, setActionFilter] = useState<string>('all');
 
   const companies = useStore((state) => state.companies);
   const jobs = useStore((state) => state.jobs);
@@ -56,6 +72,7 @@ export const AdminPanel = () => {
   const interviews = useStore((state) => state.interviews);
   const approveCompany = useStore((state) => state.approveCompany);
   const rejectCompany = useStore((state) => state.rejectCompany);
+  const offlineCompany = useStore((state) => state.offlineCompany);
   const approveJob = useStore((state) => state.approveJob);
   const rejectJob = useStore((state) => state.rejectJob);
   const offlineJob = useStore((state) => state.offlineJob);
@@ -131,6 +148,12 @@ export const AdminPanel = () => {
   const handleRejectCompany = (companyId: string) => {
     if (confirm('确定拒绝该企业的认证？')) {
       rejectCompany(companyId);
+    }
+  };
+
+  const handleOfflineCompany = (companyId: string) => {
+    if (confirm('确定下架该企业？')) {
+      offlineCompany(companyId);
     }
   };
 
@@ -456,7 +479,7 @@ export const AdminPanel = () => {
                 )}
                 {company.status === 'approved' && (
                   <button
-                    onClick={() => handleRejectCompany(company.id)}
+                    onClick={() => handleOfflineCompany(company.id)}
                     className="btn btn-danger btn-sm"
                   >
                     <Trash className="w-3.5 h-3.5 mr-1" />
@@ -813,93 +836,85 @@ export const AdminPanel = () => {
     </div>
   );
 
+  const candidateStatusLabels: Record<string, { label: string; color: string; bgColor: string; borderColor: string }> = {
+    pending: { label: '待筛选', color: 'text-slate-700', bgColor: 'bg-slate-50', borderColor: 'border-slate-200' },
+    reviewing: { label: '筛选中', color: 'text-warning-700', bgColor: 'bg-warning-50', borderColor: 'border-warning-200' },
+    interview: { label: '面试中', color: 'text-primary-700', bgColor: 'bg-primary-50', borderColor: 'border-primary-200' },
+    offer: { label: '已发Offer', color: 'text-success-700', bgColor: 'bg-success-50', borderColor: 'border-success-200' },
+    rejected: { label: '不合适', color: 'text-danger-700', bgColor: 'bg-danger-50', borderColor: 'border-danger-200' },
+  };
+
+  const interviewStatusLabels: Record<string, { label: string; color: string }> = {
+    pending: { label: '待确认', color: 'text-warning-600' },
+    confirmed: { label: '已确认', color: 'text-success-600' },
+    rescheduled: { label: '已改期', color: 'text-primary-600' },
+    cancelled: { label: '已取消', color: 'text-slate-400' },
+  };
+
+  const jobOptions = Array.from(
+    new Map(applications.map(a => {
+      const company = getCompanyById(a.job.companyId);
+      return [a.jobId, { ...a.job, companyName: company?.name || '未知公司' }];
+    })).values()
+  );
+
+  const candidateFilteredApps = candidateJobFilter === 'all'
+    ? applications
+    : applications.filter(a => a.jobId === candidateJobFilter);
+
+  const candidateGrouped = {
+    pending: candidateFilteredApps.filter(a => a.status === 'pending'),
+    reviewing: candidateFilteredApps.filter(a => a.status === 'reviewing'),
+    interview: candidateFilteredApps.filter(a => a.status === 'interview'),
+    offer: candidateFilteredApps.filter(a => a.status === 'offer'),
+    rejected: candidateFilteredApps.filter(a => a.status === 'rejected'),
+  };
+
+  const handleAdvanceStatus = (app: Application, nextStatus: Application['status']) => {
+    if (nextStatus === 'interview') {
+      setSelectedApplication(app);
+      setInterviewForm(prev => ({
+        ...prev,
+        time: '',
+        endTime: '',
+        round: interviews.filter(i => i.applicationId === app.id).length + 1,
+      }));
+      setShowInterviewModal(true);
+    } else {
+      const desc = nextStatus === 'reviewing'
+        ? 'HR已开始查看您的简历'
+        : nextStatus === 'offer'
+        ? '恭喜！HR已向您发出Offer'
+        : '很遗憾，您暂未通过本次筛选';
+      updateApplicationStatus(app.id, nextStatus, desc);
+    }
+  };
+
+  const handleCreateInterview = () => {
+    if (selectedApplication && interviewForm.time && interviewForm.endTime) {
+      createInterview(selectedApplication.id, {
+        companyId: selectedApplication.company.id,
+        jobTitle: selectedApplication.job.title,
+        companyName: selectedApplication.company.name,
+        companyLogo: selectedApplication.company.logo,
+        time: interviewForm.time,
+        endTime: interviewForm.endTime,
+        type: interviewForm.type,
+        interviewer: interviewForm.interviewer,
+        interviewerTitle: interviewForm.interviewerTitle,
+        location: interviewForm.location,
+        meetingLink: interviewForm.meetingLink,
+        notes: interviewForm.notes,
+        round: interviewForm.round,
+      });
+      setShowInterviewModal(false);
+      setSelectedApplication(null);
+    }
+  };
+
   const renderCandidates = () => {
-    const [selectedJobId, setSelectedJobId] = useState<string>('all');
-    const [showInterviewModal, setShowInterviewModal] = useState(false);
-    const [selectedApplication, setSelectedApplication] = useState<Application | null>(null);
-    const [interviewForm, setInterviewForm] = useState({
-      time: '',
-      endTime: '',
-      type: 'video' as 'onsite' | 'video' | 'phone',
-      interviewer: '王经理',
-      interviewerTitle: '技术总监',
-      location: '线上视频面试',
-      meetingLink: 'https://meeting.example.com/abc123',
-      notes: '',
-      round: 1,
-    });
-
-    const statusLabels: Record<string, { label: string; color: string; bgColor: string; borderColor: string }> = {
-      pending: { label: '待筛选', color: 'text-slate-700', bgColor: 'bg-slate-50', borderColor: 'border-slate-200' },
-      reviewing: { label: '筛选中', color: 'text-warning-700', bgColor: 'bg-warning-50', borderColor: 'border-warning-200' },
-      interview: { label: '面试中', color: 'text-primary-700', bgColor: 'bg-primary-50', borderColor: 'border-primary-200' },
-      offer: { label: '已发Offer', color: 'text-success-700', bgColor: 'bg-success-50', borderColor: 'border-success-200' },
-      rejected: { label: '不合适', color: 'text-danger-700', bgColor: 'bg-danger-50', borderColor: 'border-danger-200' },
-    };
-
-    const jobOptions = Array.from(
-      new Map(applications.map(a => {
-        const company = getCompanyById(a.job.companyId);
-        return [a.jobId, { ...a.job, companyName: company?.name || '未知公司' }];
-      })).values()
-    );
-
-    const filteredApplications = selectedJobId === 'all'
-      ? applications
-      : applications.filter(a => a.jobId === selectedJobId);
-
-    const groupedByStatus = {
-      pending: filteredApplications.filter(a => a.status === 'pending'),
-      reviewing: filteredApplications.filter(a => a.status === 'reviewing'),
-      interview: filteredApplications.filter(a => a.status === 'interview'),
-      offer: filteredApplications.filter(a => a.status === 'offer'),
-      rejected: filteredApplications.filter(a => a.status === 'rejected'),
-    };
-
-    const handleAdvanceStatus = (app: Application, nextStatus: Application['status']) => {
-      if (nextStatus === 'interview') {
-        setSelectedApplication(app);
-        setInterviewForm(prev => ({
-          ...prev,
-          time: '',
-          endTime: '',
-          round: interviews.filter(i => i.applicationId === app.id).length + 1,
-        }));
-        setShowInterviewModal(true);
-      } else {
-        const desc = nextStatus === 'reviewing'
-          ? 'HR已开始查看您的简历'
-          : nextStatus === 'offer'
-          ? '恭喜！HR已向您发出Offer'
-          : '很遗憾，您暂未通过本次筛选';
-        updateApplicationStatus(app.id, nextStatus, desc);
-      }
-    };
-
-    const handleCreateInterview = () => {
-      if (selectedApplication && interviewForm.time && interviewForm.endTime) {
-        createInterview(selectedApplication.id, {
-          companyId: selectedApplication.company.id,
-          jobTitle: selectedApplication.job.title,
-          companyName: selectedApplication.company.name,
-          companyLogo: selectedApplication.company.logo,
-          time: interviewForm.time,
-          endTime: interviewForm.endTime,
-          type: interviewForm.type,
-          interviewer: interviewForm.interviewer,
-          interviewerTitle: interviewForm.interviewerTitle,
-          location: interviewForm.location,
-          meetingLink: interviewForm.meetingLink,
-          notes: interviewForm.notes,
-          round: interviewForm.round,
-        });
-        setShowInterviewModal(false);
-        setSelectedApplication(null);
-      }
-    };
-
     const renderCandidateCard = (app: Application) => {
-      const statusInfo = statusLabels[app.status];
+      const statusInfo = candidateStatusLabels[app.status];
       const appInterviews = interviews.filter(i => i.applicationId === app.id);
       const lastInterview = appInterviews.sort((a, b) => new Date(b.time).getTime() - new Date(a.time).getTime())[0];
       const lastChat = app.timeline[app.timeline.length - 1];
@@ -948,10 +963,27 @@ export const AdminPanel = () => {
               </p>
             )}
             {lastInterview && (
-              <p className="flex items-center gap-1 text-primary-600">
-                <Calendar className="w-3 h-3" />
-                面试：{lastInterview.time}
-              </p>
+              <div className="mt-2 p-2 bg-white/70 rounded-lg border border-slate-100">
+                <p className="flex items-center gap-1 text-primary-600 font-medium">
+                  <Calendar className="w-3 h-3" />
+                  面试：{lastInterview.time}
+                </p>
+                <p className={`flex items-center gap-1 mt-0.5 ${interviewStatusLabels[lastInterview.status]?.color || 'text-slate-500'}`}>
+                  <Clock className="w-3 h-3" />
+                  状态：{interviewStatusLabels[lastInterview.status]?.label || lastInterview.status}
+                </p>
+                {lastInterview.rescheduleHistory.length > 0 && (
+                  <div className="mt-1 text-slate-400">
+                    {lastInterview.rescheduleHistory.map((rs) => (
+                      <p key={rs.id} className="flex items-center gap-1">
+                        <RefreshCw className="w-3 h-3" />
+                        改期：{rs.originalTime} → {rs.newTime}
+                        {rs.reason && <span className="ml-1">({rs.reason})</span>}
+                      </p>
+                    ))}
+                  </div>
+                )}
+              </div>
             )}
           </div>
 
@@ -1037,13 +1069,13 @@ export const AdminPanel = () => {
           <div className="flex items-center gap-2">
             <Filter className="w-4 h-4 text-slate-400" />
             <select
-              value={selectedJobId}
-              onChange={(e) => setSelectedJobId(e.target.value)}
+              value={candidateJobFilter}
+              onChange={(e) => setCandidateJobFilter(e.target.value)}
               className="input w-64"
             >
               <option value="all">全部职位</option>
               {jobOptions.map(job => (
-                <option key={job.id} value={job.id}>{job.title} - {job.companyName}</option>
+                <option key={job.id} value={job.id}>{job.title} - {(job as any).companyName}</option>
               ))}
             </select>
           </div>
@@ -1051,8 +1083,8 @@ export const AdminPanel = () => {
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
           {columns.map(col => {
-            const colData = groupedByStatus[col.key as keyof typeof groupedByStatus];
-            const colInfo = statusLabels[col.key];
+            const colData = candidateGrouped[col.key as keyof typeof candidateGrouped];
+            const colInfo = candidateStatusLabels[col.key];
             return (
               <div key={col.key} className="space-y-3">
                 <div className="flex items-center justify-between px-2">
@@ -1243,8 +1275,6 @@ export const AdminPanel = () => {
   );
 
   const renderAuditLogs = () => {
-    const [actionFilter, setActionFilter] = useState<string>('all');
-
     const targetTypeLabels: Record<string, { label: string; color: string; bgColor: string }> = {
       company: { label: '企业', color: 'text-primary-700', bgColor: 'bg-primary-50' },
       job: { label: '职位', color: 'text-accent-700', bgColor: 'bg-accent-50' },
@@ -1255,8 +1285,8 @@ export const AdminPanel = () => {
       { id: 'all', label: '全部操作' },
       { id: '通过', label: '通过' },
       { id: '拒绝', label: '拒绝' },
-      { id: '通过上架', label: '通过上架' },
       { id: '下架', label: '下架' },
+      { id: '通过上架', label: '通过上架' },
       { id: '处理', label: '处理举报' },
       { id: '驳回', label: '驳回举报' },
     ];

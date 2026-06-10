@@ -52,6 +52,7 @@ export const MessageCenter = () => {
   ];
 
   const filteredMessages = messages.filter((msg) => {
+    if (msg.type === 'chat') return false;
     if (activeTab !== 'all' && msg.type !== activeTab) return false;
     if (searchKeyword) {
       const keyword = searchKeyword.toLowerCase();
@@ -104,6 +105,8 @@ export const MessageCenter = () => {
   const chatUnreadCount = getChatUnreadCount();
   const totalUnread = getTotalUnreadCount();
 
+  const nonChatMessages = messages.filter((m) => m.type !== 'chat');
+
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [activeChat, messages]);
@@ -115,7 +118,7 @@ export const MessageCenter = () => {
           <div>
             <h1 className="text-2xl font-bold text-slate-800">消息中心</h1>
             <p className="text-slate-500 mt-1">
-              共 {messages.length + chatConversations.length} 条消息，{totalUnread} 条未读
+              共 {nonChatMessages.length + chatConversations.length} 条消息，{totalUnread} 条未读
             </p>
           </div>
           <div className="flex gap-3">

@@ -91,6 +91,7 @@ interface AppState {
 
   approveCompany: (companyId: string) => void;
   rejectCompany: (companyId: string) => void;
+  offlineCompany: (companyId: string) => void;
   approveJob: (jobId: string) => void;
   rejectJob: (jobId: string) => void;
   offlineJob: (jobId: string) => void;
@@ -359,11 +360,11 @@ export const useStore = create<AppState>()(
       },
 
       getUnreadCount: () => {
-        return get().messages.filter((m) => !m.isRead).length;
+        return get().messages.filter((m) => !m.isRead && m.type !== 'chat').length;
       },
 
       getTotalUnreadCount: () => {
-        const messageUnread = get().messages.filter((m) => !m.isRead).length;
+        const messageUnread = get().messages.filter((m) => !m.isRead && m.type !== 'chat').length;
         const chatUnread = get().chatConversations.reduce((sum, c) => sum + c.unreadCount, 0);
         return messageUnread + chatUnread;
       },
@@ -382,6 +383,7 @@ export const useStore = create<AppState>()(
             if (i.id === interviewId) {
               return {
                 ...i,
+                time: newTime,
                 status: 'rescheduled' as const,
                 rescheduleHistory: [
                   ...i.rescheduleHistory,
@@ -390,7 +392,7 @@ export const useStore = create<AppState>()(
                     originalTime: i.time,
                     newTime,
                     reason,
-                    status: 'pending' as const,
+                    status: 'approved' as const,
                     applyDate: new Date().toISOString().split('T')[0],
                   },
                 ],
@@ -604,6 +606,17 @@ export const useStore = create<AppState>()(
         const timeStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
 
         set((state) => {
+          const updatedConversations = state.chatConversations.map((c) =>
+            c.id === conversationId
+              ? {
+                  ...c,
+                  lastMessage: content,
+                  lastMessageTime: timeStr,
+                  unreadCount: 0,
+                }
+              : c
+          );
+
           const newMessage: Message = {
             id: `msg${Date.now()}`,
             type: 'chat',
@@ -617,19 +630,8 @@ export const useStore = create<AppState>()(
             createdAt: timeStr,
           };
 
-          const updatedConversations = state.chatConversations.map((c) =>
-            c.id === conversationId
-              ? {
-                  ...c,
-                  lastMessage: content,
-                  lastMessageTime: timeStr,
-                  unreadCount: 0,
-                }
-              : c
-          );
-
           return {
-            messages: [newMessage, ...state.messages],
+            messages: [...state.messages, newMessage],
             chatConversations: updatedConversations,
           };
         });
@@ -730,6 +732,26 @@ export const useStore = create<AppState>()(
             targetId: companyId,
             targetName: company.name,
             action: '拒绝',
+          });
+        }
+      },
+
+      offlineCompany: (companyId) => {
+        const { companies, currentUser } = get();
+        const company = companies.find((c) => c.id === companyId);
+        set((state) => ({
+          companies: state.companies.map((c) =>
+            c.id === companyId ? { ...c, status: 'rejected' as const } : c
+          ),
+        }));
+        if (company) {
+          get().addAuditLog({
+            operatorId: currentUser?.id || 'admin1',
+            operatorName: currentUser?.name || '管理员',
+            targetType: 'company',
+            targetId: companyId,
+            targetName: company.name,
+            action: '下架',
           });
         }
       },
