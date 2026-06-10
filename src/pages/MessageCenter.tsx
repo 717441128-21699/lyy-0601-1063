@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import {
   Bell,
   Briefcase,
@@ -15,9 +15,9 @@ import {
   Building2,
   Inbox,
   CheckCheck,
+  X,
 } from 'lucide-react';
 import { useStore } from '../store/useStore';
-import { chatConversations } from '../data/messages';
 import type { Message, ChatConversation } from '../types';
 
 const typeMap: Record<string, { label: string; icon: any; color: string; bgColor: string }> = {
@@ -32,10 +32,14 @@ export const MessageCenter = () => {
   const [activeChat, setActiveChat] = useState<ChatConversation | null>(null);
   const [chatMessage, setChatMessage] = useState('');
   const [searchKeyword, setSearchKeyword] = useState('');
+  const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  const messages = useStore(state => state.messages);
-  const markMessageAsRead = useStore(state => state.markMessageAsRead);
-  const getUnreadCount = useStore(state => state.getUnreadCount);
+  const messages = useStore((state) => state.messages);
+  const chatConversations = useStore((state) => state.chatConversations);
+  const markMessageAsRead = useStore((state) => state.markMessageAsRead);
+  const getUnreadCount = useStore((state) => state.getUnreadCount);
+  const sendChatMessage = useStore((state) => state.sendChatMessage);
+  const markConversationAsRead = useStore((state) => state.markConversationAsRead);
 
   const tabs = [
     { id: 'all', label: '全部消息' },
@@ -45,7 +49,7 @@ export const MessageCenter = () => {
     { id: 'chat', label: '聊天消息' },
   ];
 
-  const filteredMessages = messages.filter(msg => {
+  const filteredMessages = messages.filter((msg) => {
     if (activeTab !== 'all' && msg.type !== activeTab) return false;
     if (searchKeyword) {
       const keyword = searchKeyword.toLowerCase();
@@ -65,7 +69,7 @@ export const MessageCenter = () => {
   };
 
   const handleMarkAllRead = () => {
-    filteredMessages.forEach(msg => {
+    filteredMessages.forEach((msg) => {
       if (!msg.isRead) {
         markMessageAsRead(msg.id);
       }
@@ -73,12 +77,32 @@ export const MessageCenter = () => {
   };
 
   const handleSendMessage = () => {
-    if (chatMessage.trim()) {
+    if (chatMessage.trim() && activeChat) {
+      sendChatMessage(activeChat.id, chatMessage.trim());
       setChatMessage('');
     }
   };
 
+  const handleSelectChat = (chat: ChatConversation) => {
+    setActiveChat(chat);
+    markConversationAsRead(chat.id);
+  };
+
+  const getChatMessages = (chatId: string) => {
+    return messages
+      .filter(
+        (m) =>
+          m.type === 'chat' &&
+          (m.receiverId === chatId || m.senderId === chatId)
+      )
+      .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+  };
+
   const unreadCount = getUnreadCount();
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [activeChat, messages]);
 
   return (
     <div className="py-8">
@@ -97,7 +121,7 @@ export const MessageCenter = () => {
                 type="text"
                 placeholder="搜索消息..."
                 value={searchKeyword}
-                onChange={e => setSearchKeyword(e.target.value)}
+                onChange={(e) => setSearchKeyword(e.target.value)}
                 className="input pl-9 w-64"
               />
             </div>
@@ -113,10 +137,11 @@ export const MessageCenter = () => {
             <div className="card">
               <div className="border-b border-slate-100 overflow-x-auto">
                 <nav className="flex gap-1 px-4">
-                  {tabs.map(tab => {
-                    const tabUnreadCount = tab.id === 'all'
-                      ? unreadCount
-                      : messages.filter(m => m.type === tab.id && !m.isRead).length;
+                  {tabs.map((tab) => {
+                    const tabUnreadCount =
+                      tab.id === 'all'
+                        ? unreadCount
+                        : messages.filter((m) => m.type === tab.id && !m.isRead).length;
 
                     return (
                       <button
@@ -146,9 +171,9 @@ export const MessageCenter = () => {
                 </nav>
               </div>
 
-              <div className="divide-y divide-slate-100">
+              <div className="divide-y divide-slate-100 max-h-[600px] overflow-y-auto">
                 {filteredMessages.length > 0 ? (
-                  filteredMessages.map(message => {
+                  filteredMessages.map((message) => {
                     const typeInfo = typeMap[message.type];
 
                     return (
@@ -160,7 +185,9 @@ export const MessageCenter = () => {
                         }`}
                       >
                         <div className="flex items-start gap-4">
-                          <div className={`w-10 h-10 ${typeInfo.bgColor} rounded-lg flex items-center justify-center flex-shrink-0`}>
+                          <div
+                            className={`w-10 h-10 ${typeInfo.bgColor} rounded-lg flex items-center justify-center flex-shrink-0`}
+                          >
                             <typeInfo.icon className={`w-5 h-5 ${typeInfo.color}`} />
                           </div>
                           <div className="flex-1 min-w-0">
@@ -204,7 +231,7 @@ export const MessageCenter = () => {
           </div>
 
           <div className="w-full lg:w-80 flex-shrink-0">
-            <div className="card sticky top-20">
+            <div className="card sticky top-20 flex flex-col h-[600px]">
               <div className="p-4 border-b border-slate-100">
                 <div className="flex items-center justify-between">
                   <h3 className="font-semibold text-slate-800">聊天会话</h3>
@@ -214,11 +241,11 @@ export const MessageCenter = () => {
                 </div>
               </div>
 
-              <div className="divide-y divide-slate-100 max-h-96 overflow-y-auto">
-                {chatConversations.map(chat => (
+              <div className="divide-y divide-slate-100 overflow-y-auto flex-1">
+                {chatConversations.map((chat) => (
                   <div
                     key={chat.id}
-                    onClick={() => setActiveChat(chat)}
+                    onClick={() => handleSelectChat(chat)}
                     className={`p-3 cursor-pointer transition-colors hover:bg-slate-50 ${
                       activeChat?.id === chat.id ? 'bg-primary-50' : ''
                     }`}
@@ -260,8 +287,8 @@ export const MessageCenter = () => {
               </div>
 
               {activeChat && (
-                <div className="border-t border-slate-100 p-3">
-                  <div className="flex items-center gap-2 mb-3 pb-3 border-b border-slate-100">
+                <div className="border-t border-slate-100 flex flex-col" style={{ height: '300px' }}>
+                  <div className="flex items-center gap-2 p-3 border-b border-slate-100">
                     <img
                       src={activeChat.participantAvatar}
                       alt={activeChat.participantName}
@@ -275,31 +302,62 @@ export const MessageCenter = () => {
                     </div>
                   </div>
 
-                  <div className="h-40 overflow-y-auto mb-3 space-y-2">
-                    <div className="flex justify-start">
-                      <div className="bg-slate-100 rounded-xl rounded-tl-none px-3 py-2 max-w-[80%]">
-                        <p className="text-sm text-slate-700">{activeChat.lastMessage}</p>
-                      </div>
-                    </div>
+                  <div className="flex-1 overflow-y-auto p-3 space-y-3 bg-slate-50">
+                    {getChatMessages(activeChat.id).map((msg) => {
+                      const isMe = msg.senderId === 'u1';
+                      return (
+                        <div
+                          key={msg.id}
+                          className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}
+                        >
+                          <div
+                            className={`max-w-[80%] px-3 py-2 rounded-xl ${
+                              isMe
+                                ? 'bg-primary-500 text-white rounded-br-none'
+                                : 'bg-white text-slate-700 rounded-bl-none shadow-sm'
+                            }`}
+                          >
+                            <p className="text-sm">{msg.content}</p>
+                            <p
+                              className={`text-xs mt-1 ${
+                                isMe ? 'text-primary-200' : 'text-slate-400'
+                              }`}
+                            >
+                              {msg.createdAt.split(' ')[1]}
+                            </p>
+                          </div>
+                        </div>
+                      );
+                    })}
+                    <div ref={messagesEndRef} />
                   </div>
 
-                  <div className="flex gap-2">
-                    <input
-                      type="text"
-                      value={chatMessage}
-                      onChange={e => setChatMessage(e.target.value)}
-                      onKeyDown={e => e.key === 'Enter' && handleSendMessage()}
-                      placeholder="输入消息..."
-                      className="input flex-1 text-sm"
-                    />
-                    <button
-                      onClick={handleSendMessage}
-                      className="btn btn-primary p-2.5"
-                      disabled={!chatMessage.trim()}
-                    >
-                      <Send className="w-4 h-4" />
-                    </button>
+                  <div className="p-3 border-t border-slate-100">
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={chatMessage}
+                        onChange={(e) => setChatMessage(e.target.value)}
+                        onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
+                        placeholder="输入消息..."
+                        className="input flex-1 text-sm"
+                      />
+                      <button
+                        onClick={handleSendMessage}
+                        disabled={!chatMessage.trim()}
+                        className="btn btn-primary p-2.5 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        <Send className="w-4 h-4" />
+                      </button>
+                    </div>
                   </div>
+                </div>
+              )}
+
+              {!activeChat && (
+                <div className="p-8 text-center">
+                  <MessageSquare className="w-10 h-10 text-slate-300 mx-auto mb-2" />
+                  <p className="text-sm text-slate-500">选择一个会话开始聊天</p>
                 </div>
               )}
             </div>

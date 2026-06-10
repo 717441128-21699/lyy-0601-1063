@@ -22,10 +22,9 @@ import {
   ChevronDown,
   BarChart3,
   Calendar,
+  Trash,
 } from 'lucide-react';
-import { companies, getPendingCompanies } from '../data/companies';
-import { jobs, getPendingJobs } from '../data/jobs';
-import { reports, adminStats } from '../data/messages';
+import { useStore } from '../store/useStore';
 
 const reportStatusMap: Record<string, { label: string; color: string; bgColor: string }> = {
   pending: { label: '待处理', color: 'text-warning-700', bgColor: 'bg-warning-50' },
@@ -38,42 +37,130 @@ export const AdminPanel = () => {
   const [activeTab, setActiveTab] = useState('overview');
   const [searchKeyword, setSearchKeyword] = useState('');
   const [expandedJobId, setExpandedJobId] = useState<string | null>(null);
+  const [companyFilter, setCompanyFilter] = useState('all');
+  const [jobFilter, setJobFilter] = useState('all');
+  const [reportFilter, setReportFilter] = useState('all');
+
+  const companies = useStore((state) => state.companies);
+  const jobs = useStore((state) => state.jobs);
+  const reports = useStore((state) => state.reports);
+  const approveCompany = useStore((state) => state.approveCompany);
+  const rejectCompany = useStore((state) => state.rejectCompany);
+  const approveJob = useStore((state) => state.approveJob);
+  const rejectJob = useStore((state) => state.rejectJob);
+  const offlineJob = useStore((state) => state.offlineJob);
+  const resolveReport = useStore((state) => state.resolveReport);
+  const rejectReport = useStore((state) => state.rejectReport);
+  const getCompanyById = useStore((state) => state.getCompanyById);
+
+  const pendingCompanies = companies.filter((c) => c.status === 'pending');
+  const pendingJobs = jobs.filter((j) => j.status === 'pending');
+  const pendingReports = reports.filter((r) => r.status === 'pending');
+
+  const totalCompanies = companies.length;
+  const totalJobs = jobs.filter((j) => j.status === 'active').length;
+  const totalUsers = 12586;
+  const todayApplications = 156;
+
+  const adminStats = {
+    totalCompanies,
+    totalJobs,
+    totalUsers,
+    todayApplications,
+    pendingCompanies: pendingCompanies.length,
+    pendingJobs: pendingJobs.length,
+    pendingReports: pendingReports.length,
+    weeklyTrend: [
+      { date: '周一', applications: 280, jobs: 22 },
+      { date: '周二', applications: 310, jobs: 25 },
+      { date: '周三', applications: 295, jobs: 18 },
+      { date: '周四', applications: 330, jobs: 28 },
+      { date: '周五', applications: 350, jobs: 30 },
+      { date: '周六', applications: 200, jobs: 15 },
+      { date: '周日', applications: 180, jobs: 12 },
+    ],
+  };
 
   const sidebarItems = [
     { id: 'overview', label: '数据概览', icon: LayoutDashboard },
-    { id: 'companies', label: '企业审核', icon: Building2, badge: getPendingCompanies().length },
-    { id: 'jobs', label: '职位审核', icon: Briefcase, badge: getPendingJobs().length },
-    { id: 'reports', label: '举报管理', icon: Flag, badge: reports.filter(r => r.status === 'pending').length },
+    { id: 'companies', label: '企业审核', icon: Building2, badge: pendingCompanies.length },
+    { id: 'jobs', label: '职位审核', icon: Briefcase, badge: pendingJobs.length },
+    { id: 'reports', label: '举报管理', icon: Flag, badge: pendingReports.length },
     { id: 'users', label: '用户管理', icon: Users },
     { id: 'settings', label: '系统设置', icon: Settings },
   ];
 
-  const pendingCompanies = getPendingCompanies();
-  const pendingJobs = getPendingJobs();
-  const pendingReports = reports.filter(r => r.status === 'pending');
+  const filteredCompanies = companies.filter((c) => {
+    if (companyFilter !== 'all' && c.status !== companyFilter) return false;
+    if (searchKeyword && !c.name.toLowerCase().includes(searchKeyword.toLowerCase())) return false;
+    return true;
+  });
+
+  const filteredJobs = jobs.filter((j) => {
+    if (jobFilter !== 'all' && j.status !== jobFilter) return false;
+    if (searchKeyword && !j.title.toLowerCase().includes(searchKeyword.toLowerCase())) return false;
+    return true;
+  });
+
+  const filteredReports = reports.filter((r) => {
+    if (reportFilter !== 'all' && r.status !== reportFilter) return false;
+    if (searchKeyword && !r.targetName.toLowerCase().includes(searchKeyword.toLowerCase())) return false;
+    return true;
+  });
 
   const handleApproveCompany = (companyId: string) => {
-    alert(`企业 ${companyId} 已通过审核`);
+    if (confirm('确定通过该企业的认证？')) {
+      approveCompany(companyId);
+    }
   };
 
   const handleRejectCompany = (companyId: string) => {
-    alert(`企业 ${companyId} 已被拒绝`);
+    if (confirm('确定拒绝该企业的认证？')) {
+      rejectCompany(companyId);
+    }
   };
 
   const handleApproveJob = (jobId: string) => {
-    alert(`职位 ${jobId} 已通过审核并上架`);
+    if (confirm('确定通过该职位审核并上架？')) {
+      approveJob(jobId);
+    }
   };
 
   const handleRejectJob = (jobId: string) => {
-    alert(`职位 ${jobId} 已被拒绝`);
+    if (confirm('确定拒绝该职位？')) {
+      rejectJob(jobId);
+    }
   };
 
   const handleOfflineJob = (jobId: string) => {
-    alert(`职位 ${jobId} 已下架`);
+    if (confirm('确定下架该职位？')) {
+      offlineJob(jobId);
+    }
   };
 
   const handleResolveReport = (reportId: string) => {
-    alert(`举报 ${reportId} 已处理`);
+    if (confirm('确定将该举报标记为已解决？')) {
+      resolveReport(reportId);
+    }
+  };
+
+  const handleRejectReport = (reportId: string) => {
+    if (confirm('确定驳回该举报？')) {
+      rejectReport(reportId);
+    }
+  };
+
+  const jobStatusLabels: Record<string, string> = {
+    active: '已上架',
+    pending: '待审核',
+    offline: '已下架',
+    rejected: '已拒绝',
+  };
+
+  const companyStatusLabels: Record<string, string> = {
+    approved: '已通过',
+    pending: '待审核',
+    rejected: '已拒绝',
   };
 
   const renderOverview = () => (
@@ -106,7 +193,7 @@ export const AdminPanel = () => {
             </span>
           </div>
           <p className="text-2xl font-bold text-slate-800">{adminStats.totalJobs}</p>
-          <p className="text-sm text-slate-500 mt-1">职位总数</p>
+          <p className="text-sm text-slate-500 mt-1">在招职位</p>
         </div>
 
         <div className="card p-5">
@@ -119,7 +206,9 @@ export const AdminPanel = () => {
               +15%
             </span>
           </div>
-          <p className="text-2xl font-bold text-slate-800">{adminStats.totalUsers.toLocaleString()}</p>
+          <p className="text-2xl font-bold text-slate-800">
+            {adminStats.totalUsers.toLocaleString()}
+          </p>
           <p className="text-sm text-slate-500 mt-1">用户总数</p>
         </div>
 
@@ -146,7 +235,9 @@ export const AdminPanel = () => {
             </div>
             <div>
               <p className="text-sm text-slate-500">待审核企业</p>
-              <p className="text-xl font-bold text-slate-800">{adminStats.pendingCompanies}</p>
+              <p className="text-xl font-bold text-slate-800">
+                {adminStats.pendingCompanies}
+              </p>
             </div>
           </div>
           <button
@@ -165,7 +256,9 @@ export const AdminPanel = () => {
             </div>
             <div>
               <p className="text-sm text-slate-500">待审核职位</p>
-              <p className="text-xl font-bold text-slate-800">{adminStats.pendingJobs}</p>
+              <p className="text-xl font-bold text-slate-800">
+                {adminStats.pendingJobs}
+              </p>
             </div>
           </div>
           <button
@@ -184,7 +277,9 @@ export const AdminPanel = () => {
             </div>
             <div>
               <p className="text-sm text-slate-500">待处理举报</p>
-              <p className="text-xl font-bold text-slate-800">{adminStats.pendingReports}</p>
+              <p className="text-xl font-bold text-slate-800">
+                {adminStats.pendingReports}
+              </p>
             </div>
           </div>
           <button
@@ -239,7 +334,7 @@ export const AdminPanel = () => {
 
   const renderCompanies = () => (
     <div>
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
         <h2 className="text-xl font-bold text-slate-800">企业审核</h2>
         <div className="relative">
           <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
@@ -247,7 +342,7 @@ export const AdminPanel = () => {
             type="text"
             placeholder="搜索企业..."
             value={searchKeyword}
-            onChange={e => setSearchKeyword(e.target.value)}
+            onChange={(e) => setSearchKeyword(e.target.value)}
             className="input pl-9 w-64"
           />
         </div>
@@ -255,80 +350,115 @@ export const AdminPanel = () => {
 
       <div className="card">
         <div className="p-4 border-b border-slate-100">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <span className="text-sm text-slate-500">状态筛选：</span>
-            {['全部', '待审核', '已通过', '已拒绝'].map(status => (
+            {[
+              { value: 'all', label: '全部' },
+              { value: 'pending', label: '待审核' },
+              { value: 'approved', label: '已通过' },
+              { value: 'rejected', label: '已拒绝' },
+            ].map((status) => (
               <button
-                key={status}
-                className="px-3 py-1 text-sm rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors"
+                key={status.value}
+                onClick={() => setCompanyFilter(status.value)}
+                className={`px-3 py-1 text-sm rounded-lg transition-colors ${
+                  companyFilter === status.value
+                    ? 'bg-primary-100 text-primary-700'
+                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                }`}
               >
-                {status}
+                {status.label}
               </button>
             ))}
           </div>
         </div>
 
         <div className="divide-y divide-slate-100">
-          {pendingCompanies.map(company => (
-            <div key={company.id} className="p-4">
-              <div className="flex items-start justify-between gap-4">
-                <div className="flex items-start gap-4 flex-1 min-w-0">
-                  <img
-                    src={company.logo}
-                    alt={company.name}
-                    className="w-14 h-14 rounded-xl object-cover bg-slate-100 flex-shrink-0"
-                  />
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <h4 className="font-semibold text-slate-800">{company.name}</h4>
-                      <span className="badge badge-warning">待审核</span>
-                    </div>
-                    <p className="text-sm text-slate-500 mt-0.5">{company.industry} · {company.scale}</p>
-                    <div className="flex items-center gap-4 mt-2 text-sm text-slate-500">
-                      <span className="flex items-center gap-1">
-                        <Building2 className="w-3.5 h-3.5" />
-                        {company.location}
-                      </span>
-                      <span className="flex items-center gap-1">
-                        <Briefcase className="w-3.5 h-3.5" />
-                        {company.jobCount}个职位
-                      </span>
-                      <span className="flex items-center gap-1">
-                        <Calendar className="w-3.5 h-3.5" />
-                        {company.certification.establishDate}成立
-                      </span>
-                    </div>
+          {filteredCompanies.map((company) => (
+          <div key={company.id} className="p-4">
+            <div className="flex items-start justify-between gap-4">
+              <div className="flex items-start gap-4 flex-1 min-w-0">
+                <img
+                  src={company.logo}
+                  alt={company.name}
+                  className="w-14 h-14 rounded-xl object-cover bg-slate-100 flex-shrink-0"
+                />
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h4 className="font-semibold text-slate-800">{company.name}</h4>
+                    <span
+                      className={`badge ${
+                        company.status === 'pending'
+                          ? 'badge-warning'
+                          : company.status === 'approved'
+                          ? 'badge-success'
+                          : 'badge-danger'
+                      }`}
+                    >
+                      {companyStatusLabels[company.status] || company.status}
+                    </span>
+                  </div>
+                  <p className="text-sm text-slate-500 mt-0.5">
+                    {company.industry} · {company.scale}
+                  </p>
+                  <div className="flex items-center gap-4 mt-2 text-sm text-slate-500 flex-wrap">
+                    <span className="flex items-center gap-1">
+                      <Building2 className="w-3.5 h-3.5" />
+                      {company.location}
+                    </span>
+                    <span className="flex items-center gap-1">
+                      <Briefcase className="w-3.5 h-3.5" />
+                      {company.jobCount}个职位
+                    </span>
+                    <span className="flex items-center gap-1">
+                      <Calendar className="w-3.5 h-3.5" />
+                      {company.certification.establishDate}成立
+                    </span>
                   </div>
                 </div>
-                <div className="flex gap-2 flex-shrink-0">
-                  <button className="btn btn-secondary btn-sm">
-                    <Eye className="w-3.5 h-3.5 mr-1" />
-                    查看
-                  </button>
+              </div>
+              <div className="flex gap-2 flex-shrink-0">
+                <button className="btn btn-secondary btn-sm">
+                  <Eye className="w-3.5 h-3.5 mr-1" />
+                  查看
+                </button>
+                {company.status === 'pending' && (
+                  <>
+                    <button
+                      onClick={() => handleRejectCompany(company.id)}
+                      className="btn btn-danger btn-sm"
+                    >
+                      <X className="w-3.5 h-3.5 mr-1" />
+                      拒绝
+                    </button>
+                    <button
+                      onClick={() => handleApproveCompany(company.id)}
+                      className="btn btn-primary btn-sm"
+                    >
+                      <Check className="w-3.5 h-3.5 mr-1" />
+                      通过
+                    </button>
+                  </>
+                )}
+                {company.status === 'approved' && (
                   <button
                     onClick={() => handleRejectCompany(company.id)}
                     className="btn btn-danger btn-sm"
                   >
-                    <X className="w-3.5 h-3.5 mr-1" />
-                    拒绝
+                    <Trash className="w-3.5 h-3.5 mr-1" />
+                    下架
                   </button>
-                  <button
-                    onClick={() => handleApproveCompany(company.id)}
-                    className="btn btn-primary btn-sm"
-                  >
-                    <Check className="w-3.5 h-3.5 mr-1" />
-                    通过
-                  </button>
-                </div>
+                )}
               </div>
             </div>
-          ))}
+          </div>
+        ))}
         </div>
 
-        {pendingCompanies.length === 0 && (
+        {filteredCompanies.length === 0 && (
           <div className="text-center py-12">
             <CheckCircle className="w-12 h-12 text-success-300 mx-auto mb-3" />
-            <p className="text-slate-500">暂无待审核企业</p>
+            <p className="text-slate-500">暂无企业数据</p>
           </div>
         )}
       </div>
@@ -337,7 +467,7 @@ export const AdminPanel = () => {
 
   const renderJobs = () => (
     <div>
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
         <h2 className="text-xl font-bold text-slate-800">职位审核</h2>
         <div className="relative">
           <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
@@ -345,7 +475,7 @@ export const AdminPanel = () => {
             type="text"
             placeholder="搜索职位..."
             value={searchKeyword}
-            onChange={e => setSearchKeyword(e.target.value)}
+            onChange={(e) => setSearchKeyword(e.target.value)}
             className="input pl-9 w-64"
           />
         </div>
@@ -353,22 +483,33 @@ export const AdminPanel = () => {
 
       <div className="card">
         <div className="p-4 border-b border-slate-100">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <span className="text-sm text-slate-500">状态筛选：</span>
-            {['全部', '待审核', '已上架', '已下架', '已拒绝'].map(status => (
+            {[
+              { value: 'all', label: '全部' },
+              { value: 'pending', label: '待审核' },
+              { value: 'active', label: '已上架' },
+              { value: 'offline', label: '已下架' },
+              { value: 'rejected', label: '已拒绝' },
+            ].map((status) => (
               <button
-                key={status}
-                className="px-3 py-1 text-sm rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors"
+                key={status.value}
+                onClick={() => setJobFilter(status.value)}
+                className={`px-3 py-1 text-sm rounded-lg transition-colors ${
+                  jobFilter === status.value
+                    ? 'bg-primary-100 text-primary-700'
+                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                }`}
               >
-                {status}
+                {status.label}
               </button>
             ))}
           </div>
         </div>
 
         <div className="divide-y divide-slate-100">
-          {pendingJobs.map(job => {
-            const company = companies.find(c => c.id === job.companyId);
+          {filteredJobs.map((job) => {
+            const company = getCompanyById(job.companyId);
             const isExpanded = expandedJobId === job.id;
 
             return (
@@ -386,14 +527,28 @@ export const AdminPanel = () => {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
                         <h4 className="font-semibold text-slate-800">{job.title}</h4>
-                        <span className="badge badge-warning">待审核</span>
+                        <span
+                          className={`badge ${
+                            job.status === 'pending'
+                              ? 'badge-warning'
+                              : job.status === 'active'
+                              ? 'badge-success'
+                              : job.status === 'offline'
+                              ? 'bg-slate-100 text-slate-600'
+                              : 'badge-danger'
+                          }`}
+                        >
+                          {jobStatusLabels[job.status] || job.status}
+                        </span>
                       </div>
                       <p className="text-sm text-slate-500 mt-0.5">{company?.name}</p>
-                      <div className="flex items-center gap-4 mt-2 text-sm text-slate-500">
+                      <div className="flex items-center gap-4 mt-2 text-sm text-slate-500 flex-wrap">
                         <span className="text-accent-600 font-medium">
                           {job.salary.min}-{job.salary.max}K
                         </span>
-                        <span>{job.location.city} · {job.location.district}</span>
+                        <span>
+                          {job.location.city} · {job.location.district}
+                        </span>
                         <span>{job.experience}</span>
                         <span>{job.education}</span>
                       </div>
@@ -407,7 +562,7 @@ export const AdminPanel = () => {
                 </div>
 
                 {isExpanded && (
-                  <div className="mt-4 pt-4 border-t border-slate-100">
+                  <div className="mt-4 pt-4 border-t border-slate-100" onClick={(e) => e.stopPropagation()}>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                       <div>
                         <h5 className="text-sm font-medium text-slate-700 mb-2">职位描述</h5>
@@ -427,44 +582,88 @@ export const AdminPanel = () => {
                     </div>
 
                     <div className="flex justify-end gap-2">
-                      <button
-                        onClick={() => handleRejectJob(job.id)}
-                        className="btn btn-danger btn-sm"
-                      >
-                        <X className="w-3.5 h-3.5 mr-1" />
-                        拒绝
-                      </button>
-                      <button
-                        onClick={() => handleApproveJob(job.id)}
-                        className="btn btn-primary btn-sm"
-                      >
-                        <Check className="w-3.5 h-3.5 mr-1" />
-                        通过并上架
-                      </button>
+                      {job.status === 'pending' && (
+                        <>
+                          <button
+                            onClick={() => handleRejectJob(job.id)}
+                            className="btn btn-danger btn-sm"
+                          >
+                            <X className="w-3.5 h-3.5 mr-1" />
+                            拒绝
+                          </button>
+                          <button
+                            onClick={() => handleApproveJob(job.id)}
+                            className="btn btn-primary btn-sm"
+                          >
+                            <Check className="w-3.5 h-3.5 mr-1" />
+                            通过并上架
+                          </button>
+                        </>
+                      )}
+                      {job.status === 'active' && (
+                        <button
+                          onClick={() => handleOfflineJob(job.id)}
+                          className="btn btn-secondary btn-sm"
+                        >
+                          <XCircle className="w-3.5 h-3.5 mr-1" />
+                          下架职位
+                        </button>
+                      )}
+                      {(job.status === 'offline' || job.status === 'rejected') && (
+                        <button
+                          onClick={() => handleApproveJob(job.id)}
+                          className="btn btn-primary btn-sm"
+                        >
+                          <Check className="w-3.5 h-3.5 mr-1" />
+                          重新上架
+                        </button>
+                      )}
                     </div>
                   </div>
                 )}
 
                 {!isExpanded && (
-                  <div className="flex justify-end gap-2 mt-3">
-                    <button className="btn btn-secondary btn-sm">
-                      <Eye className="w-3.5 h-3.5 mr-1" />
-                      查看详情
-                    </button>
-                    <button
-                      onClick={() => handleRejectJob(job.id)}
-                      className="btn btn-danger btn-sm"
-                    >
-                      <X className="w-3.5 h-3.5 mr-1" />
-                      拒绝
-                    </button>
-                    <button
-                      onClick={() => handleApproveJob(job.id)}
-                      className="btn btn-primary btn-sm"
-                    >
-                      <Check className="w-3.5 h-3.5 mr-1" />
-                      通过
-                    </button>
+                  <div className="flex justify-end gap-2 mt-3" onClick={(e) => e.stopPropagation()}>
+                    {job.status === 'pending' && (
+                      <>
+                        <button className="btn btn-secondary btn-sm">
+                          <Eye className="w-3.5 h-3.5 mr-1" />
+                          查看详情
+                        </button>
+                        <button
+                          onClick={() => handleRejectJob(job.id)}
+                          className="btn btn-danger btn-sm"
+                        >
+                          <X className="w-3.5 h-3.5 mr-1" />
+                          拒绝
+                        </button>
+                        <button
+                          onClick={() => handleApproveJob(job.id)}
+                          className="btn btn-primary btn-sm"
+                        >
+                          <Check className="w-3.5 h-3.5 mr-1" />
+                          通过
+                        </button>
+                      </>
+                    )}
+                    {job.status === 'active' && (
+                      <button
+                        onClick={() => handleOfflineJob(job.id)}
+                        className="btn btn-secondary btn-sm"
+                      >
+                        <XCircle className="w-3.5 h-3.5 mr-1" />
+                        下架
+                      </button>
+                    )}
+                    {(job.status === 'offline' || job.status === 'rejected') && (
+                      <button
+                        onClick={() => handleApproveJob(job.id)}
+                        className="btn btn-primary btn-sm"
+                      >
+                        <Check className="w-3.5 h-3.5 mr-1" />
+                        上架
+                      </button>
+                    )}
                   </div>
                 )}
               </div>
@@ -472,10 +671,10 @@ export const AdminPanel = () => {
           })}
         </div>
 
-        {pendingJobs.length === 0 && (
+        {filteredJobs.length === 0 && (
           <div className="text-center py-12">
             <CheckCircle className="w-12 h-12 text-success-300 mx-auto mb-3" />
-            <p className="text-slate-500">暂无待审核职位</p>
+            <p className="text-slate-500">暂无职位数据</p>
           </div>
         )}
       </div>
@@ -484,7 +683,7 @@ export const AdminPanel = () => {
 
   const renderReports = () => (
     <div>
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
         <h2 className="text-xl font-bold text-slate-800">举报管理</h2>
         <div className="relative">
           <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
@@ -492,7 +691,7 @@ export const AdminPanel = () => {
             type="text"
             placeholder="搜索举报..."
             value={searchKeyword}
-            onChange={e => setSearchKeyword(e.target.value)}
+            onChange={(e) => setSearchKeyword(e.target.value)}
             className="input pl-9 w-64"
           />
         </div>
@@ -500,28 +699,41 @@ export const AdminPanel = () => {
 
       <div className="card">
         <div className="p-4 border-b border-slate-100">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <span className="text-sm text-slate-500">状态筛选：</span>
-            {['全部', '待处理', '处理中', '已解决', '已驳回'].map(status => (
+            {[
+              { value: 'all', label: '全部' },
+              { value: 'pending', label: '待处理' },
+              { value: 'processing', label: '处理中' },
+              { value: 'resolved', label: '已解决' },
+              { value: 'rejected', label: '已驳回' },
+            ].map((status) => (
               <button
-                key={status}
-                className="px-3 py-1 text-sm rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors"
+                key={status.value}
+                onClick={() => setReportFilter(status.value)}
+                className={`px-3 py-1 text-sm rounded-lg transition-colors ${
+                  reportFilter === status.value
+                    ? 'bg-primary-100 text-primary-700'
+                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                }`}
               >
-                {status}
+                {status.label}
               </button>
             ))}
           </div>
         </div>
 
         <div className="divide-y divide-slate-100">
-          {reports.map(report => {
+          {filteredReports.map((report) => {
             const statusInfo = reportStatusMap[report.status];
 
             return (
               <div key={report.id} className="p-4">
                 <div className="flex items-start justify-between gap-4">
                   <div className="flex items-start gap-3 flex-1 min-w-0">
-                    <div className={`w-10 h-10 ${statusInfo.bgColor} rounded-lg flex items-center justify-center flex-shrink-0`}>
+                    <div
+                      className={`w-10 h-10 ${statusInfo.bgColor} rounded-lg flex items-center justify-center flex-shrink-0`}
+                    >
                       <Flag className={`w-5 h-5 ${statusInfo.color}`} />
                     </div>
                     <div className="flex-1 min-w-0">
@@ -531,7 +743,11 @@ export const AdminPanel = () => {
                           {statusInfo.label}
                         </span>
                         <span className="badge bg-slate-100 text-slate-600">
-                          {report.type === 'job' ? '职位' : report.type === 'company' ? '企业' : '用户'}
+                          {report.type === 'job'
+                            ? '职位'
+                            : report.type === 'company'
+                            ? '企业'
+                            : '用户'}
                         </span>
                       </div>
                       <p className="text-sm text-slate-600 mt-1">
@@ -546,9 +762,11 @@ export const AdminPanel = () => {
                   <div className="flex gap-2 flex-shrink-0">
                     {report.status === 'pending' && (
                       <>
-                        <button className="btn btn-secondary btn-sm">
-                          <Eye className="w-3.5 h-3.5 mr-1" />
-                          查看
+                        <button
+                          onClick={() => handleRejectReport(report.id)}
+                          className="btn btn-secondary btn-sm"
+                        >
+                          驳回
                         </button>
                         <button
                           onClick={() => handleResolveReport(report.id)}
@@ -561,8 +779,8 @@ export const AdminPanel = () => {
                     )}
                     {report.status !== 'pending' && (
                       <span className="text-sm text-slate-400">
-                        {report.handledAt} 处理
-                      </span>
+                      {report.handledAt} 处理
+                    </span>
                     )}
                   </div>
                 </div>
@@ -570,6 +788,13 @@ export const AdminPanel = () => {
             );
           })}
         </div>
+
+        {filteredReports.length === 0 && (
+          <div className="text-center py-12">
+            <Flag className="w-12 h-12 text-slate-300 mx-auto mb-3" />
+            <p className="text-slate-500">暂无举报数据</p>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -591,10 +816,10 @@ export const AdminPanel = () => {
       <h2 className="text-xl font-bold text-slate-800 mb-6">系统设置</h2>
       <div className="card">
         <div className="text-center py-12">
-          <Settings className="w-12 h-12 text-slate-300 mx-auto mb-3" />
-          <p className="text-slate-500">系统设置功能开发中...</p>
-        </div>
+        <Settings className="w-12 h-12 text-slate-300 mx-auto mb-3" />
+        <p className="text-slate-500">系统设置功能开发中...</p>
       </div>
+    </div>
     </div>
   );
 
@@ -626,27 +851,33 @@ export const AdminPanel = () => {
           <aside className="w-full lg:w-56 flex-shrink-0">
             <div className="card p-3 sticky top-20">
               <nav className="space-y-1">
-                {sidebarItems.map(item => (
-                  <button
-                    key={item.id}
-                    onClick={() => setActiveTab(item.id)}
-                    className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-sm transition-colors ${
-                      activeTab === item.id
-                        ? 'bg-primary-50 text-primary-700 font-medium'
-                        : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
-                    }`}
-                  >
-                    <div className="flex items-center gap-3">
-                      <item.icon className="w-4 h-4" />
-                      {item.label}
-                    </div>
-                    {item.badge !== undefined && item.badge > 0 && (
-                      <span className="px-2 py-0.5 bg-danger-500 text-white text-xs rounded-full">
-                        {item.badge}
-                      </span>
-                    )}
-                  </button>
-                ))}
+                {sidebarItems.map((item) => {
+                  const Icon = item.icon;
+                  return (
+                    <button
+                      key={item.id}
+                      onClick={() => {
+                        setActiveTab(item.id);
+                        setSearchKeyword('');
+                      }}
+                      className={`w-full flex items-center justify-between px-3 py-2.5 rounded-lg text-sm transition-colors ${
+                        activeTab === item.id
+                          ? 'bg-primary-50 text-primary-700 font-medium'
+                          : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <Icon className="w-4 h-4" />
+                        {item.label}
+                      </div>
+                      {item.badge !== undefined && item.badge > 0 && (
+                        <span className="px-2 py-0.5 bg-danger-500 text-white text-xs rounded-full">
+                          {item.badge}
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
               </nav>
 
               <div className="mt-4 pt-4 border-t border-slate-100">
@@ -663,11 +894,9 @@ export const AdminPanel = () => {
             </div>
           </aside>
 
-          <div className="flex-1 min-w-0">
-            {renderContent()}
-          </div>
+          <div className="flex-1 min-w-0">{renderContent()}</div>
         </div>
       </div>
     </div>
   );
-};
+}
